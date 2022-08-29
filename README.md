@@ -1,5 +1,7 @@
 # HiPR on [Alveo U50 Data Center Accelerator Card](https://www.xilinx.com/products/boards-and-kits/alveo/u50.html)
-HiPR is a python-based framework on top of [Vitis 2021.1](https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav/vivado-design-tools/2021-1.html). With HiPR, you can define PR sub-functions at C-Level. HiPR can parse the pragmas and automates the backend implementations. 
+HiPR is a python-based framework on top of [Vitis 2021.1](https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav/vivado-design-tools/2021-1.html). With HiPR, you can define PR sub-functions at C-Level. HiPR can parse the pragmas and automates the backend implementations.
+
+The pre-print manuscript of our paper could be found [here](https://ic.ese.upenn.edu/pdf/hipr_fpl2022.pdf).
 
 
 ## 1 Tool Setup
