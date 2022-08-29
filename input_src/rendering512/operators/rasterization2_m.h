@@ -8,7 +8,6 @@ void rasterization2_m (
 		hls::stream<ap_uint<32> > & Output_3,
 		hls::stream<ap_uint<32> > & Output_4
 		);
-#pragma map_target = HIPR page_num = 14 inst_mem_size = 65536
 #pragma  clb =4 ff = 1 bram =2.4 dsp =1.2
 
 

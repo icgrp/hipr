@@ -63,34 +63,28 @@ class overlay(gen_basic):
       target_exist, target = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+operator+'.h', 'map_target') 
       # prepare the hls workspace
 
-      hls_inst.run(operator, self.overlay_dir+'/place_holder', '../../..', ['syn_'+operator+'.tcl', 'syn_'+operator+'_dummy.tcl'])
-      if target_exist == True and target == 'HIPR':
-        # if the operator is hipr type, use dummy as dcp for initial overlay P&R
-        self.shell.cp_file('./common/verilog_src/stream_shell.v',  self.overlay_dir+'/place_holder')
-        self.shell.write_lines(self.overlay_dir+'/place_holder/syn_'+operator+'.tcl',       self.tcl.return_syn_page_tcl_list(operator,  [operator+'_top.v', 'stream_shell.v'], top_name=operator+'_top', hls_src='./'+operator+'_prj/'+operator+'/syn/verilog',   dcp_name=operator+'_netlist_false.dcp', rpt_name='utilization_'+operator+'.rpt'))
-        self.shell.write_lines(self.overlay_dir+'/place_holder/syn_'+operator+'_dummy.tcl', self.tcl.return_syn_page_tcl_list(operator,                                     [], top_name=operator       , hls_src='./'+operator+'_prj/'+operator+'/verilog_dummy', dcp_name=operator+'_netlist.dcp', rpt_name='utilization.rpt'))
-        operator_arg_dict, operator_width_dict = self.dataflow.return_operator_io_argument_dict(operator)
-        in_width_list, out_width_list = self.dataflow.return_io_width(operator_width_dict[operator], operator_arg_dict[operator])
-        input_num  = len(in_width_list) 
-        output_num = len(out_width_list) 
-        addr_width_dict = {}
-        for i in range(1, 8):  addr_width_dict['Output_'+str(i)] = self.prflow_params['bram_addr_bits']
-        for arg in  operator_arg_dict[operator]:
-          port_depth_exist, depth = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+operator+'.h', arg+'_depth')
-          if port_depth_exist: addr_width_dict[arg] = depth
+      hls_inst.run(operator, self.overlay_dir+'/place_holder', '../../..', ['syn_'+operator+'.tcl', 'syn_'+operator+'_dummy.tcl'], isOverlay=True)
+      # if the operator is hipr type, use dummy as dcp for initial overlay P&R
+      self.shell.cp_file('./common/verilog_src/stream_shell.v',  self.overlay_dir+'/place_holder')
+      self.shell.write_lines(self.overlay_dir+'/place_holder/syn_'+operator+'.tcl',       self.tcl.return_syn_page_tcl_list(operator,  [operator+'_top.v', 'stream_shell.v'], top_name=operator+'_top', hls_src='./'+operator+'_prj/'+operator+'/syn/verilog',   dcp_name=operator+'_netlist_false.dcp', rpt_name='utilization_'+operator+'.rpt'))
+      self.shell.write_lines(self.overlay_dir+'/place_holder/syn_'+operator+'_dummy.tcl', self.tcl.return_syn_page_tcl_list(operator,                                     [], top_name=operator       , hls_src='./'+operator+'_prj/'+operator+'/verilog_dummy', dcp_name=operator+'_netlist.dcp', rpt_name='utilization.rpt'))
+      operator_arg_dict, operator_width_dict = self.dataflow.return_operator_io_argument_dict(operator)
+      in_width_list, out_width_list = self.dataflow.return_io_width(operator_width_dict[operator], operator_arg_dict[operator])
+      input_num  = len(in_width_list) 
+      output_num = len(out_width_list) 
+      addr_width_dict = {}
+      for i in range(1, 8):  addr_width_dict['Output_'+str(i)] = self.prflow_params['bram_addr_bits']
+      for arg in  operator_arg_dict[operator]:
+        port_depth_exist, depth = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+operator+'.h', arg+'_depth')
+        if port_depth_exist: addr_width_dict[arg] = depth
 
-        self.shell.write_lines(self.overlay_dir+'/place_holder/'+operator+'_top.v',
-                           self.verilog.return_hipr_page_v_list(operator,
-                                                                operator_arg_dict[operator],
-                                                                operator_width_dict[operator],
-                                                                addr_width_dict),
-                                                                False)
- 
+      self.shell.write_lines(self.overlay_dir+'/place_holder/'+operator+'_top.v',
+                         self.verilog.return_hipr_page_v_list(operator,
+                                                              operator_arg_dict[operator],
+                                                              operator_width_dict[operator],
+                                                              addr_width_dict),
+                                                              False)
 
-      else:
-        # if the operator is not hipr type, use real dcp as dcp for initial overlay P&R
-        self.shell.write_lines(self.overlay_dir+'/place_holder/syn_'+operator+'.tcl',       self.tcl.return_syn_page_tcl_list(operator,  [], top_name=operator, hls_src='./'+operator+'_prj/'+operator+'/syn/verilog',   dcp_name=operator+'_netlist.dcp', rpt_name='utilization_'+operator+'.rpt'))
-        self.shell.write_lines(self.overlay_dir+'/place_holder/syn_'+operator+'_dummy.tcl', self.tcl.return_syn_page_tcl_list(operator,  [], top_name=operator, hls_src='./'+operator+'_prj/'+operator+'/verilog_dummy', dcp_name=operator+'netlist.dcp_false', rpt_name='utilization.rpt'))
       self.shell.write_lines(self.overlay_dir+'/place_holder/'+operator+'_prj/'+operator+'/verilog_dummy/'+operator+'.v', self.verilog.return_place_holder_v_list(operator, in_width_list, out_width_list)) 
 
 

@@ -30,7 +30,7 @@ class hls(gen_basic):
       return files  
 
   # create one directory for each page 
-  def create_page(self, fun_name, hls_path, src_path, syn_tcl_file):
+  def create_page(self, fun_name, hls_path, src_path, syn_tcl_file, isOverlay):
     map_target_exist, map_target = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+fun_name+'.h', 'map_target')
     self.shell.re_mkdir(hls_path+'/'+fun_name+'_prj')
     self.shell.re_mkdir(hls_path+'/'+fun_name+'_prj/'+fun_name)
@@ -47,7 +47,7 @@ class hls(gen_basic):
         
     self.shell.write_lines(hls_path+'/'+fun_name+'_prj/hls.app', self.tcl.return_hls_prj_list(fun_name))
     self.shell.write_lines(hls_path+'/'+fun_name+'_prj/'+fun_name+'/script.tcl', self.tcl.return_hls_tcl_list(fun_name, src_path))
-    if map_target == 'HW' or map_target == 'HIPR':
+    if map_target == 'HW' or map_target == 'HIPR' or isOverlay:
       # if the map target is Hardware, we need to compile the c code through vivado_hls 
       self.shell.write_lines(hls_path+'/run_'+fun_name+'.sh', self.shell.return_run_hls_sh_list(self.prflow_params['Xilinx_dir'], './'+fun_name+'_prj/'+fun_name+'/script.tcl', syn_tcl_file, self.prflow_params['back_end']), True)
     else:
@@ -55,7 +55,7 @@ class hls(gen_basic):
       self.shell.write_lines(hls_path+'/run_'+fun_name+'.sh', self.shell.return_empty_sh_list(), True)
       self.shell.write_lines(hls_path+'/runLog'+fun_name+'.log', ['hls: 0 senconds'], False)
 
-  def run(self, operator, path=None, src_path='../..', syn_tcl_file=[]):
+  def run(self, operator, path=None, src_path='../..', syn_tcl_file=[], isOverlay=False):
     if path == None:
       hls_path = self.hls_dir
     else:
@@ -64,7 +64,7 @@ class hls(gen_basic):
     self.shell.mkdir(hls_path)
     
     # create ip directories for all the pages
-    self.create_page(operator, hls_path, src_path, syn_tcl_file)
+    self.create_page(operator, hls_path, src_path, syn_tcl_file, isOverlay)
     
  
 

@@ -1557,7 +1557,7 @@ void hipr::gen_xdc(void){
 	myfile.open (cstr);
 
 	for(uint i=0; i<dfxs.size(); i++){
-		if(dfxs[i].isPR == "hipr"){
+		if(dfxs[i].isPR == "HIPR"){
 			Res_range out;
 			//dfxs[i].row_end = dfxs[i].row;
 			myfile << "\n\ncreate_pblock " << dfxs[i].name << endl;

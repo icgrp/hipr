@@ -16,7 +16,7 @@ class report(gen_basic):
     for fun_name in sorted(operators_list):
       map_target_exist, map_target = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+fun_name+'.h', 'map_target')
       page_exist, page_num = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+fun_name+'.h', 'page_num')
-      time_report_dict[fun_name] = fun_name.ljust(30) + '\t' + map_target + '\t' + page_num 
+      time_report_dict[fun_name] = fun_name.ljust(30) + '\t' + str(map_target) + '\t' + str(page_num) 
       time_data_dict[fun_name] = []
       #process hls timing
       try:
@@ -77,7 +77,7 @@ class report(gen_basic):
       print(fun_name)
       map_target_exist, map_target = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+fun_name+'.h', 'map_target')
       page_exist, page_num = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+fun_name+'.h', 'page_num')
-      resource_report_dict[fun_name] = fun_name.ljust(30) + '\t' + map_target + '\t' + page_num
+      resource_report_dict[fun_name] = fun_name.ljust(30) + '\t' + str(map_target) + '\t' + str(page_num)
       #####################################################################################
       #process resource utilization
       try:
@@ -110,7 +110,7 @@ class report(gen_basic):
     for fun_name in operators_list:
       map_target_exist, map_target = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+fun_name+'.h', 'map_target')
       page_exist, page_num = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+fun_name+'.h', 'page_num')
-      timing_report_dict[fun_name] = fun_name.ljust(30) + '\t' + map_target + '\t' + page_num
+      timing_report_dict[fun_name] = fun_name.ljust(30) + '\t' + str(map_target) + '\t' + str(page_num)
       #####################################################################################
       #process timing report
       try:
