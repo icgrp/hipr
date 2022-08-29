@@ -154,6 +154,7 @@ cat ./workspace/F005_bits_rendering512_200M/opencl_summary.csv
 
 7. In the terminal type `make report`, you will see the resource, compile time and STA timing reports as below.
 
+![](images/report.png)
 
 
 
