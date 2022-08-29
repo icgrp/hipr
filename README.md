@@ -115,7 +115,7 @@ Go to [./input_src/rendering512](input_src/rendering512) and type `make`, you wi
 ![](./images/csimu.png)
 
 ## 4 Tutorial 2: Map all Operators to PR regions.
-1. Below you compile any applications, you need to install the necesary setup files by executing commands as below.
+1. Below you compile any applications, you need to install the necesary setup files by executing commands as below. This steps can take hours.
 
 ```c
 make install
