@@ -1,23 +1,8 @@
 
-freq=100M
-#prj_name=digit_reg_small
-#prj_name=spam_filter_small
-#prj_name=data_move
-#prj_name=data_shift
+freq=200M
 
+prj_name=rendering512
 
-#prj_name=bnn512
-#prj_name=digit_reg512
-prj_name=face_detection512
-#prj_name=optical_flow512
-#prj_name=rendering512
-#prj_name=spam_filter512
-
-#prj_name=datamover
-#prj_name=rendering_explore
-#prj_name=bnn1
-#prj_name=spam_filter512_old
-#prj_name=optical_flow512_debug
 
 
 prefix=/opt
