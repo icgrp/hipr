@@ -1557,44 +1557,46 @@ void hipr::gen_xdc(void){
 	myfile.open (cstr);
 
 	for(uint i=0; i<dfxs.size(); i++){
-		Res_range out;
-		//dfxs[i].row_end = dfxs[i].row;
-		myfile << "\n\ncreate_pblock " << dfxs[i].name << endl;
-		out = find_resource_range(CLB, dfxs[i].placement.x,  dfxs[i].placement.x+ dfxs[i].placement.w-1);
-		if (out.valid){
-			myfile << "resize_pblock [get_pblocks " << dfxs[i].name << "] -add {SLICE_X";
-			myfile << out.start << "Y" << CLB_OFFSET+dfxs[i].placement.y*60+5 << ":SLICE_X" << out.end << "Y" << (dfxs[i].placement.y+dfxs[i].placement.h)*60-1 << "}" << endl;
-		}
+		if(dfxs[i].isPR == "hipr"){
+			Res_range out;
+			//dfxs[i].row_end = dfxs[i].row;
+			myfile << "\n\ncreate_pblock " << dfxs[i].name << endl;
+			out = find_resource_range(CLB, dfxs[i].placement.x,  dfxs[i].placement.x+ dfxs[i].placement.w-1);
+			if (out.valid){
+				myfile << "resize_pblock [get_pblocks " << dfxs[i].name << "] -add {SLICE_X";
+				myfile << out.start << "Y" << CLB_OFFSET+dfxs[i].placement.y*60+5 << ":SLICE_X" << out.end << "Y" << (dfxs[i].placement.y+dfxs[i].placement.h)*60-1 << "}" << endl;
+			}
 
-		out = find_resource_range(DSP2, dfxs[i].placement.x, dfxs[i].placement.x+dfxs[i].placement.w-1);
-		if (out.valid){
-			myfile << "resize_pblock [get_pblocks " << dfxs[i].name << "] -add {DSP48E2_X";
-			int left_botton_Y = DSP2_OFFSET+dfxs[i].placement.y*24+2 < 0 ? 0 : DSP2_OFFSET+dfxs[i].placement.y*24+2;
-			myfile << out.start << "Y" << left_botton_Y << ":DSP48E2_X" << out.end << "Y" << this->DSP2_OFFSET+(dfxs[i].placement.y+dfxs[i].placement.h)*24-1 << "}" << endl;
-		}
+			out = find_resource_range(DSP2, dfxs[i].placement.x, dfxs[i].placement.x+dfxs[i].placement.w-1);
+			if (out.valid){
+				myfile << "resize_pblock [get_pblocks " << dfxs[i].name << "] -add {DSP48E2_X";
+				int left_botton_Y = DSP2_OFFSET+dfxs[i].placement.y*24+2 < 0 ? 0 : DSP2_OFFSET+dfxs[i].placement.y*24+2;
+				myfile << out.start << "Y" << left_botton_Y << ":DSP48E2_X" << out.end << "Y" << this->DSP2_OFFSET+(dfxs[i].placement.y+dfxs[i].placement.h)*24-1 << "}" << endl;
+			}
 
-		out = find_resource_range(BRAM18, dfxs[i].placement.x, dfxs[i].placement.x+dfxs[i].placement.w-1);
-		if (out.valid) {
-			myfile << "resize_pblock [get_pblocks " << dfxs[i].name << "] -add {RAMB18_X";
-			int left_botton_Y;
-			left_botton_Y = BRAM18_OFFSET+dfxs[i].placement.y*24+2 < 0 ? 0 : BRAM18_OFFSET+dfxs[i].placement.y*24+2;
-			myfile << out.start << "Y" << left_botton_Y << ":RAMB18_X" << out.end << "Y" << (dfxs[i].placement.y+dfxs[i].placement.h)*24-1 << "}" << endl;
-			myfile << "resize_pblock [get_pblocks " << dfxs[i].name << "] -add {RAMB36_X";
-			left_botton_Y = BRAM36_OFFSET+dfxs[i].placement.y*12+1 < 0 ? 0 : BRAM36_OFFSET+dfxs[i].placement.y*12+1;
-			myfile << out.start << "Y" << left_botton_Y << ":RAMB36_X" << out.end << "Y" << (dfxs[i].placement.y+dfxs[i].placement.h)*12-1 << "}" << endl;
-		}
+			out = find_resource_range(BRAM18, dfxs[i].placement.x, dfxs[i].placement.x+dfxs[i].placement.w-1);
+			if (out.valid) {
+				myfile << "resize_pblock [get_pblocks " << dfxs[i].name << "] -add {RAMB18_X";
+				int left_botton_Y;
+				left_botton_Y = BRAM18_OFFSET+dfxs[i].placement.y*24+2 < 0 ? 0 : BRAM18_OFFSET+dfxs[i].placement.y*24+2;
+				myfile << out.start << "Y" << left_botton_Y << ":RAMB18_X" << out.end << "Y" << (dfxs[i].placement.y+dfxs[i].placement.h)*24-1 << "}" << endl;
+				myfile << "resize_pblock [get_pblocks " << dfxs[i].name << "] -add {RAMB36_X";
+				left_botton_Y = BRAM36_OFFSET+dfxs[i].placement.y*12+1 < 0 ? 0 : BRAM36_OFFSET+dfxs[i].placement.y*12+1;
+				myfile << out.start << "Y" << left_botton_Y << ":RAMB36_X" << out.end << "Y" << (dfxs[i].placement.y+dfxs[i].placement.h)*12-1 << "}" << endl;
+			}
 
-		out = find_resource_range(URAM, dfxs[i].placement.x, dfxs[i].placement.x+dfxs[i].placement.w-1);
-		if (out.valid){
-			myfile << "resize_pblock [get_pblocks " << dfxs[i].name << "] -add {URAM288_X";
-			int left_botton_Y = URAM288_OFFSET+dfxs[i].placement.y*16+4 < 0 ? 0 : URAM288_OFFSET+dfxs[i].placement.y*16+4;
-			myfile << out.start << "Y" << left_botton_Y << ":URAM288_X" << out.end << "Y" << this->URAM288_OFFSET+(dfxs[i].placement.y+dfxs[i].placement.h)*16-1 << "}" << endl;
-		}
+			out = find_resource_range(URAM, dfxs[i].placement.x, dfxs[i].placement.x+dfxs[i].placement.w-1);
+			if (out.valid){
+				myfile << "resize_pblock [get_pblocks " << dfxs[i].name << "] -add {URAM288_X";
+				int left_botton_Y = URAM288_OFFSET+dfxs[i].placement.y*16+4 < 0 ? 0 : URAM288_OFFSET+dfxs[i].placement.y*16+4;
+				myfile << out.start << "Y" << left_botton_Y << ":URAM288_X" << out.end << "Y" << this->URAM288_OFFSET+(dfxs[i].placement.y+dfxs[i].placement.h)*16-1 << "}" << endl;
+			}
 
-		myfile << "set_property SNAPPING_MODE ON [get_pblocks " << dfxs[i].name << "]" << endl;
-		myfile << "set_property IS_SOFT TRUE [get_pblocks " << dfxs[i].name << "]" << endl;
-		myfile << "add_cells_to_pblock [get_pblocks " << dfxs[i].name;
-		myfile << "] [get_cells -quiet [list " << this->xdc_inst << "/ydma_1/mono_inst/" << dfxs[i].name << "_inst]] -quiet" << endl;
+			myfile << "set_property SNAPPING_MODE ON [get_pblocks " << dfxs[i].name << "]" << endl;
+			myfile << "set_property IS_SOFT TRUE [get_pblocks " << dfxs[i].name << "]" << endl;
+			myfile << "add_cells_to_pblock [get_pblocks " << dfxs[i].name;
+			myfile << "] [get_cells -quiet [list " << this->xdc_inst << "/ydma_1/mono_inst/" << dfxs[i].name << "_inst]] -quiet" << endl;
+		}
 	}
 	myfile.close();
 }
