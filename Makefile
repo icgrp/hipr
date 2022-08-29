@@ -36,11 +36,11 @@ mono_bft_target=$(ws_mbft)/prj/floorplan_static.runs/impl_1/floorplan_static_wra
 download_target=$(ws_bit)/download.tcl 
 config_target=$(ws_mbft)/config.cpp 
 ydma=$(ws_ydma)/__ydma_is_ready__
-ydma_100M=F000_ydma_100M/__ydma_is_ready__
-ydma_150M=F000_ydma_150M/__ydma_is_ready__
-ydma_200M=F000_ydma_200M/__ydma_is_ready__
-ydma_250M=F000_ydma_250M/__ydma_is_ready__
-ydma_300M=F000_ydma_300M/__ydma_is_ready__
+ydma_100M=$(ws)/F000_ydma_100M/__ydma_is_ready__
+ydma_150M=$(ws)/F000_ydma_150M/__ydma_is_ready__
+ydma_200M=$(ws)/F000_ydma_200M/__ydma_is_ready__
+ydma_250M=$(ws)/F000_ydma_250M/__ydma_is_ready__
+ydma_300M=$(ws)/F000_ydma_300M/__ydma_is_ready__
 
 
 overlay_type=hipr
@@ -147,10 +147,10 @@ $(ws_overlay)$(overlay_suffix)/__overlay_is_ready__: ./common/configure/configur
 	python3 pr_flow.py $(prj_name) -g -f $(freq) -op '$(basename $(notdir $(operators_bit_targets)))'
 	cd ./workspace/F001_overlay$(overlay_suffix) && ./main.sh
 
-ydma:$(ydma) 
-$(ydma):./common/ydma/src/ydma.cpp 
-	python3 pr_flow.py  $(prj_name) -y -f $(freq)
-	cd $(ws_ydma) && ./main.sh
+#ydma:$(ydma) 
+#$(ydma):./common/ydma/src/ydma.cpp 
+#	python3 pr_flow.py  $(prj_name) -y -f $(freq)
+#	cd $(ws_ydma) && ./main.sh
 
 install: $(ydma_100M) $(ydma_150M) $(ydma_200M) $(ydma_250M) $(ydma_300M) 
 
