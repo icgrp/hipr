@@ -1,6 +1,6 @@
 # HiPR on [Alveo U50 Data Center Accelerator Card](https://www.xilinx.com/products/boards-and-kits/alveo/u50.html)
 HiPR is a python-based framework on top of [Vitis 2021.1](https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav/vivado-design-tools/2021-1.html). With HiPR, you can define PR sub-functions at C-Level. HiPR can parse the pragmas and automates the backend implementations.
-We will use the **rednering512** on local the local machine as an example. We will release **google cloud** flow and **other benchmarks** soon later.
+We will use the **rednering512** on the local machine as an example. We will release **google cloud** flow and **other benchmarks** soon later.
 
 The pre-print manuscript of our paper could be found at https://ic.ese.upenn.edu/pdf/hipr_fpl2022.pdf.
 
@@ -10,15 +10,15 @@ The pre-print manuscript of our paper could be found at https://ic.ese.upenn.edu
 ### 1.1 Vitis Preparation
 The demo is developed with [Vitis 2021.1](https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav/vivado-design-tools/2021-1.html) 
 and [Alveo U50](https://www.xilinx.com/products/boards-and-kits/alveo/u50.html)..
-If you install Vitis under **/opt/Xilinx/**, you should set the **Xilinx_dir** in  [./common/configure/configure.xml](./common/configure/configure.xml) as below.
+If you install Vitis under **/opt/Xilinx/**, you should set the **Xilinx_dir** in  [./common/configure/configure.xml](./common/configure/configure.xml) as below.
 ```c
-    <spec name = "Xilinx_dir" value = "/opt/Xilinx/Vitis/2021.1/settings64.sh" />
+    <spec name = "Xilinx_dir" value = "/opt/Xilinx/Vitis/2021.1/settings64.sh" />
 ```
 
 
-### 1.2  Xilinx Runtim Installation
+### 1.2  Xilinx Runtim Installation
 You can download the `Xilinx Runtime (xrt_202110.2.11.634_18.04-amd64-xrt)` from [here](https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav/alveo/u50.html)
-We will install our software under your **/opt** directory. If you has no permission to write to **/opt**, you can change the permission by the command as below.
+We will install our software under your **/opt** directory. If you have no permission to write to **/opt**, you can change the permission by the command below.
 
 ```c
 sudo chown $USER /opt
@@ -31,20 +31,20 @@ sudo apt install ./xrt_202110.2.11.634_18.04-amd64-xrt.deb
 ```
 
 
-You should also set the features correctly in  [./common/configure/configure.xml](./common/configure/configure.xml) as below.
+You should also set the features correctly in  [./common/configure/configure.xml](./common/configure/configure.xml) as below.
 
 ```c
-   <spec name = "xrt_dir"            value = "/opt/xilinx/xrt/setup.sh" />
+   <spec name = "xrt_dir"            value = "/opt/xilinx/xrt/setup.sh" />
 ```
 
-### 1.3  AU50 Development Target Platform
+### 1.3  AU50 Development Target Platform
 You can downlowd Development Target Platform (xilinx-u50-gen3x16-xdma-dev-201920.3-2784799_all) from [here](https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav/alveo/u50.html).
 
-After you install the platform, you should set these features correctly in  [./common/configure/au50/configure.xml](./common/configure/au50/configure.xml) as below.
+After you install the platform, you should set these features correctly in  [./common/configure/au50/configure.xml](./common/configure/au50/configure.xml) as below.
 
 
 ```c 
-  <spec name = "PLATFORM"            value = "xilinx_u50_gen3x16_xdma_201920_3" />
+  <spec name = "PLATFORM"            value = "xilinx_u50_gen3x16_xdma_201920_3" />
 ```
 
 
@@ -89,9 +89,9 @@ input_src/rendering512/
 │   ├── zculling_top.cpp
 │   └── zculling_top.h
 ├── sw_emu
-    ├── build_and_run.sh
-    ├── Makefile
-    └── xrt.ini
+    ├── build_and_run.sh
+    ├── Makefile
+    └── xrt.ini
 
 ```
 
@@ -108,14 +108,14 @@ to show how to connect different operators together. Our python script
 ([runtime.py](./pr_flow/runtime.py)) can
 parse the top.cpp and operator header files to extract the interconnection,
 and generate the configuration packets.
- 
+ 
 ## 3 Tutorial 1: Software Simulation
-Go to [./input_src/rendering512](input_src/rendering512) and type `make`, you will get the software simuation to run. The results are as below.
+Go to [./input_src/rendering512](input_src/rendering512) and type `make`, you will get the software simulation to run. The results are as below.
 
 ![](./images/csimu.png)
 
 ## 4 Tutorial 2: Map all Operators to PR regions.
-1. Below you compile any applications, you need to install the necesary setup files by executing commands as below. This steps can take hours.
+1. Below you compile any applications, you need to install the necessary setup files by executing commands as below. This step can take hours.
 
 ```c
 make install
@@ -123,8 +123,8 @@ make install
 
 2. In the [Makefile](./Makefile), change the **prj_name** to **rendering512**. You can also change the frequency you want.
 ```c
-    prj_name=rendering512
-    freq=200M
+    prj_name=rendering512
+    freq=200M
 ```
 
 3. Type '**Make -j$(nproc)**'. It will generate all the necessary DCP and 
@@ -139,11 +139,11 @@ Make -j$(nproc)
 
 4. After all the compile tasks are completed, you can see the abstract shell dcp for each DFX pages under [.workspace/F001_overlay_rendering512_200M/au50_dfx_hipr/checkpoint](workspace/F001_overlay_rendering512_200M/au50_dfx_hipr/checkpoint).
 
-5. Type `make run`, you will see the results as below.
+5. Type `make run`, you will see the results below.
 
 ![](images/bunny.png)
 
-6. Run the command as below to get the runtime of the application. You can see the runtime for rendering512 is 1.58 ms.
+6. Run the command below to get the runtime of the application. You can see the runtime for rendering512 is 1.58 ms.
 
 ```c
 cat ./workspace/F005_bits_rendering512_200M/opencl_summary.csv
@@ -155,7 +155,6 @@ cat ./workspace/F005_bits_rendering512_200M/opencl_summary.csv
 7. In the terminal type `make report`, you will see the resource, compile time and STA timing reports as below.
 
 ![](images/report.png)
-
 
 
 
