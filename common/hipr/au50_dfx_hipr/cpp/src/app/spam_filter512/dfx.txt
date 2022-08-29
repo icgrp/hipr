@@ -1,0 +1,15 @@
+Sigmoid_axi                   hipr	156	193	6	0
+data_1_4_1                    hipr	772	1634	4	0
+data_1_4_2                    hipr	772	1634	4	0
+data_1_4_3                    hipr	289	684	4	0
+data_1_4_4                    hipr	289	684	4	0
+data_2_1                      hipr	1461	1723	4	0
+data_in_redir                 hipr	1432	3006	12	0
+dotProduct_1                  hipr	1130	1457	4	32
+dotProduct_2                  hipr	1130	1457	4	32
+dotProduct_3                  hipr	1130	1457	4	32
+dotProduct_4                  hipr	1130	1457	4	32
+dotProduct_5                  hipr	1130	1457	4	32
+dotProduct_6                  hipr	1130	1457	4	32
+dotProduct_7                  hipr	1130	1457	4	32
+dotProduct_8                  hipr	1130	1457	4	32

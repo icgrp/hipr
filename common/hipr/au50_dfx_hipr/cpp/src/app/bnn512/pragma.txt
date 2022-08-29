@@ -1,0 +1,11 @@
+bc0_gen_0                     	2	1	1.5	1.2
+bc1_gen_0                     	2	1	1.5	1.2
+bc2_gen_0                     	2	1	1.5	1.2
+bd_gen_0                      	2	1	1.1	1.2
+bd_gen_1                      	2	1	1.1	1.2
+bin_conv_0                    	2	1	1.1	1.2
+bin_conv_1                    	2	1	1.1	1.2
+bin_conv_2                    	2	1	1.1	1.2
+bin_dense_wrapper             	2	1	6	1.2
+data_transfer                 	2	1	4	1.2
+fp_conv                       	2	1	1.1	1.2

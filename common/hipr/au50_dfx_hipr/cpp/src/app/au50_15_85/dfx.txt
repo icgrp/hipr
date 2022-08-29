@@ -1,0 +1,15 @@
+rec7              hipr   140840 239760        46    9    
+rec2              hipr   90560 159840        8    60    
+rec14             hipr   172960 289440        28    76   
+rec3              hipr   91480  144720        64    68    
+rec13             hipr   960    1440          44     0      
+rec6              hipr   40680  83520         12    32    
+rec4              hipr   24840  41760         6     17    
+rec10             hipr   50680  83520         32    52    
+rec12             hipr   12440  20160         2     10    
+rec5              hipr   12000  36000         44     76    
+rec1              hipr   480    720           22     0      
+rec15             hipr   480    720           0      22     
+rec11             hipr   480    720           0      22     
+rec9              hipr   480    720           0      22     
+rec8              hipr   960    1440          0      0      

@@ -1,0 +1,17 @@
+data_transfer                 	2	1	1.1	1.2
+flow_calc_1                   	2	1	1.1	1.2
+flow_calc_2                   	2	1	1.1	1.2
+gradient_weight_x1            	2	1	1.1	1.2
+gradient_weight_x2            	2	1	1.1	1.2
+gradient_weight_x3            	2	1	1.1	1.2
+gradient_weight_y_1           	2	1	1.1	1.2
+gradient_weight_y_2           	2	1	1.1	1.2
+gradient_weight_y_3           	2	1	1.1	1.2
+gradient_xyz_calc             	2	1	1.1	1.2
+outer_product1                	2	1	1.1	1.2
+outer_product2                	2	1	1.1	1.2
+output_fun                    	2	1	8	1.2
+tensor_weight_x1              	2	1	1.1	1.2
+tensor_weight_x2              	2	1	1.1	1.2
+tensor_weight_y1              	2	1	1.1	1.2
+tensor_weight_y2              	2	1	1.1	1.2

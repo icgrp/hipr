@@ -1,0 +1,16 @@
+rec2	rec4	29
+rec3	rec2	5
+rec3	rec6	38
+rec5	rec3	35
+rec6	rec2	34
+rec6	rec4	17
+rec9	rec1	23
+rec10	rec5	13
+rec1	rec7	14
+rec2	rec7	19
+rec3	rec8	40
+rec4	rec6	11
+rec5	rec6	7
+rec6	rec2	16
+DMA	rec1	512
+rec1	DMA	512

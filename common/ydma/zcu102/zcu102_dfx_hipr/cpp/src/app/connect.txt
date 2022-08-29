@@ -1,0 +1,12 @@
+data_transfer	data_redir_m
+DMA	data_transfer
+data_redir_m	rasterization2_m
+zculling_top	coloringFB_top_m
+data_redir_m	rasterization2_m
+rasterization2_m	zculling_top
+coloringFB_top_m	DMA
+rasterization2_m	zculling_top
+coloringFB_bot_m	coloringFB_top_m
+zculling_bot	coloringFB_bot_m
+rasterization2_m	zculling_bot
+rasterization2_m	zculling_bot

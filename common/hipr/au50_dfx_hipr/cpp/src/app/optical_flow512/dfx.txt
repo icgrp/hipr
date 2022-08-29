@@ -1,0 +1,17 @@
+data_transfer                 hipr	686	1639	4	0
+flow_calc_1                   hipr	4466	4049	4	64
+flow_calc_2                   hipr	4466	4049	4	64
+gradient_weight_x1            hipr	876	898	4	10
+gradient_weight_x2            hipr	876	898	4	10
+gradient_weight_x3            hipr	876	898	4	10
+gradient_weight_y_1           hipr	815	712	16	10
+gradient_weight_y_2           hipr	815	712	16	10
+gradient_weight_y_3           hipr	815	712	16	10
+gradient_xyz_calc             hipr	800	918	24	10
+outer_product1                hipr	312	503	4	12
+outer_product2                hipr	330	569	4	12
+output_fun                    hipr	367	1640	4	0
+tensor_weight_x1              hipr	875	1638	4	27
+tensor_weight_x2              hipr	875	1638	4	27
+tensor_weight_y1              hipr	981	1551	22	27
+tensor_weight_y2              hipr	981	1551	22	27

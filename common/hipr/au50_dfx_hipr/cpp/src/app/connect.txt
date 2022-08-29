@@ -1,0 +1,16 @@
+bin_conv_0	bin_conv_1
+DMA	data_transfer
+bc0_gen_0	bin_conv_0
+bin_conv_1	bin_conv_2
+bin_conv_2	bin_dense_wrapper
+data_transfer	bd_gen_0
+fp_conv	bin_conv_0
+bc2_gen_0	bin_conv_2
+data_transfer	bc1_gen_0
+data_transfer	bc2_gen_0
+data_transfer	fp_conv
+data_transfer	bc0_gen_0
+bin_dense_wrapper	DMA
+bd_gen_1	bin_dense_wrapper
+bd_gen_0	bd_gen_1
+bc1_gen_0	bin_conv_1

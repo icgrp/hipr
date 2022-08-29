@@ -1,0 +1,15 @@
+Sigmoid_axi                   	2	1	1.1	1.2
+data_1_4_1                    	2	1	1.1	1.2
+data_1_4_2                    	2	1	1.1	1.2
+data_1_4_3                    	2	1	1.1	1.2
+data_1_4_4                    	2	1	1.1	1.2
+data_2_1                      	2	1	1.1	1.2
+data_in_redir                 	2	1	1.1	1.2
+dotProduct_1                  	2	1	1.1	1.2
+dotProduct_2                  	2	1	1.1	1.2
+dotProduct_3                  	2	1	1.1	1.2
+dotProduct_4                  	2	1	1.1	1.2
+dotProduct_5                  	2	1	1.1	1.2
+dotProduct_6                  	2	1	1.1	1.2
+dotProduct_7                  	2	1	1.1	1.2
+dotProduct_8                  	2	1	1.1	1.2
