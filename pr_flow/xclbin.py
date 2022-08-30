@@ -9,7 +9,7 @@ import pr_flow.syn
 class xclbin(gen_basic):
   
   # create one directory for each page 
-  def create_page(self, operator, page_num):
+  def create_page(self, operator):
     self.shell.cp_file('common/script_src/gen_xclbin_'+self.prflow_params['board']+'.sh', self.bit_dir+'/run_'+operator+'.sh')
     tmp_dict = {'bitstream=' : 'bitstream='+operator+'.bit',
                 'xmlfile='   : 'xmlfile='+operator+'.xml',
@@ -35,6 +35,23 @@ class xclbin(gen_basic):
                                                                                                   self.prflow_params['node'], 
                                                                                                    ), True)
 
+  # create one directory for each page 
+  def create_false(self, operator):
+    str_list=['#!/bin/bash -e',
+              'touch ./'+operator+'.xclbin']
+    self.shell.write_lines(self.bit_dir+'/run_'+operator+'.sh', str_list, True)
+    self.shell.write_lines(self.bit_dir+'/main_'+operator+'.sh', self.shell.return_main_sh_list(
+                                                                                                  './run_'+operator+'.sh', 
+                                                                                                  self.prflow_params['back_end'], 
+                                                                                                  'impl_'+operator, 
+                                                                                                  'xclbin_'+operator, 
+                                                                                                  self.prflow_params['grid'], 
+                                                                                                  'qsub@qsub.com',
+                                                                                                  self.prflow_params['mem'], 
+                                                                                                  self.prflow_params['node'], 
+                                                                                                   ), True)
+
+ 
   def create_shell_file(self):
   # local run:
   #   main.sh <- |_ execute each impl_page.tcl
@@ -49,7 +66,9 @@ class xclbin(gen_basic):
       self.shell.mkdir(self.bit_dir)
     
     # create ip directories for all the pages
-    page_num_exist, page_num = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+operator+'.h', 'page_num') 
-    if page_num_exist==True:
-      self.create_page(operator, page_num)
+    target_exist, target = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+operator+'.h', 'map_target') 
+    if target_exist==True and target == 'HIPR':
+      self.create_page(operator)
+    else:
+      self.create_false(operator)
 

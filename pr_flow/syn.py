@@ -49,128 +49,7 @@ class syn(gen_basic):
     out= int(size_in)/2048 + int(self.prflow_params['input_port_bram_cost'])*input_num+int(self.prflow_params['output_port_bram_cost'])*output_num + 1
     return out
 
-  def prepare_RISCV(self, operator, page_num, input_num, output_num):
-    # extract basic information about the operator
-    operator_arg_list, operator_width_list = self.return_operator_io_argument_width_list_local(operator)   
-    map_target, page_num, input_num, output_num =  self.return_map_target(operator)
-    debug_exist, debug_port = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+operator+'.h', 'debug_port')
-    if(debug_exist): output_num = output_num+1
-
-    # if 1, use 3/4 of the power-of-2 brams
-    is_triple = 0
-
-    if map_target == 'RISCV':  inst_mem_exist, inst_mem_size = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+operator+'.h', 'inst_mem_size')
-    if inst_mem_exist == False:
-      inst_mem_size = 16384 
-    else:
-      is_triple, inst_mem_size = self.ceiling_mem_size(inst_mem_size)
-
-
-
-    # if no existed bitstream for riscv core, regenerate the necessary files for synthesis
-    riscv_bit = 'empty'
-    for i in range(int(input_num), 6):
-      for j in range(int(output_num), 6):
-        if os.path.exists(self.overlay_dir+'/riscv_bit_lib/page'+page_num+'_'+str(inst_mem_size/2048)+'bram'+'I'+str(i)+'O'+str(j)+'.bit'):
-          riscv_bit = self.overlay_dir+'/riscv_bit_lib/page'+page_num+'_'+str(inst_mem_size/2048)+'bram'+str(i)+'O'+str(j)+'.bit'
-          break
-
-    utilization_log_list = self.shell.file_to_list(self.overlay_dir+'/utilization'+page_num+'.rpt')
-    for line in utilization_log_list: 
-      if (self.shell.have_target_string(line, '|   RAMB18       |')):
-        line = line.replace(' ','')
-        line_list = line.split('|')
-        bram_limit = line_list[8] 
-
-
-
-    if(int(bram_limit) < self.return_bram18_number(inst_mem_size, input_num, output_num)): 
-      log_out = open( self.syn_dir+'/'+operator+'/runLog_'+operator+'.log', 'w')
-      log_out.write('echo no enough bram18s to map the riscv cores\n')
-      print ('\n================================================')
-      print ('This operator needs ' + str(self.return_bram18_number(inst_mem_size, input_num, output_num)) + ' brams, while we only have ' + str(bram_limit) +' brams in this page')
-      print ('================================================\n')
-      log_out.close()
-      return
-
-    if(int(output_num) > 5):
-      log_out = open( self.syn_dir+'/'+operator+'/runLog_'+operator+'.log', 'w')
-      log_out.write('No enough output ports. The maximum output port number is 5!\n')
-      print ('\n==========================================================')
-      print ('No enough output ports. The maximum output port number is 5!\n')
-      print ('============================================================\n')
-      log_out.close()
-      return
-
-    if riscv_bit == 'empty':
-      self.prepare_HW(operator, page_num, input_num, output_num)
-
-    inst_mem_bits = self.return_bit_size(inst_mem_size-1)-2
-    print ('inst_mem_bits', inst_mem_bits)
-    LENGTH = '0x'+hex(int(inst_mem_size)).replace('0x', '').zfill(8)
-    print (LENGTH)
-    # create a riscv dirctory
-    self.shell.cp_dir('./common/riscv_src/riscv/*', self.syn_dir+'/'+operator)
-    self.shell.replace_lines(self.syn_dir+'/'+operator+'/run.sh', {'RISCV_GNU_TOOLCHAIN_INSTALL_PREFIX=': 'RISCV_GNU_TOOLCHAIN_INSTALL_PREFIX='+self.prflow_params['riscv_dir']}) 
-    self.shell.replace_lines(self.syn_dir+'/'+operator+'/run.sh', {'operator=': 'operator='+operator}) 
-    self.shell.replace_lines(self.syn_dir+'/'+operator+'/run.sh', {'MEM_SIZE=': 'MEM_SIZE='+str(int(inst_mem_size)/4)}) 
-    self.shell.replace_lines(self.syn_dir+'/'+operator+'/run.sh', {'PAGE_NUM=': 'PAGE_NUM='+str(page_num)}) 
-    os.system('chmod +x ' + self.syn_dir+'/'+operator+'/run.sh') 
-
-    # Add operator instantiation into the main wrapper function  
-    config_inst = config.config(self.prflow_params)
-    io_argument_dict = config_inst.return_operator_io_argument_dict_local(operator)
-    main_cpp_str_list = []
-    for num in range(input_num):
-      WIDTH = operator_width_list[self.verilog.return_idx_in_list_local(operator_arg_list, 'Input_'+str(num+1))].split('<')[1].split('>')[0]
-      main_cpp_str_list.append('  hls::stream<ap_uint<'+str(WIDTH)+'> > Input_'+str(num+1)+'(STREAMIN'+str(num+1)+','+str(WIDTH)+');')
-    for num in range(output_num):
-      WIDTH = operator_width_list[self.verilog.return_idx_in_list_local(operator_arg_list, 'Output_'+str(num+1))].split('<')[1].split('>')[0]
-      main_cpp_str_list.append('  hls::stream<ap_uint<'+str(WIDTH)+'> > Output_'+str(num+1)+'(STREAMOUT'+str(num+1)+','+str(WIDTH)+');')
-    str_line = '    '+operator+'('
-    for io_name in io_argument_dict[operator]:
-      str_line = str_line + io_name + ','
-    str_line = str_line + ')'
-    str_line = str_line.replace(',)', ');')
-    main_cpp_str_list.append('  while(1){')
-    main_cpp_str_list.append(str_line)
-    main_cpp_str_list.append('  }')
-    self.shell.add_lines(self.syn_dir+'/'+operator+'/main.cpp', '//stream', main_cpp_str_list)
-
-    # copy the typedefs.h file into out-of-context synthesis dir
-    # replace the headerfile defintions
-    self.shell.cp_file('input_src/'+self.prflow_params['benchmark_name']+'/host/typedefs.h', self.syn_dir+'/'+operator)
-    self.shell.replace_lines(self.syn_dir+'/'+operator+'/typedefs.h', {'<hls_stream.h>': '#include "hls_stream.h"'}) 
-    self.shell.replace_lines(self.syn_dir+'/'+operator+'/typedefs.h', {'<ap_fixed.h>': '#include "ap_fixed.h"'}) 
-    self.shell.replace_lines(self.syn_dir+'/'+operator+'/typedefs.h', {'#define risc': '#define RISCV'}) 
-    self.shell.replace_lines(self.syn_dir+'/'+operator+'/typedefs.h', {'<ap_int.h>': '#include "ap_int.h"'}) 
-    self.shell.replace_lines(self.syn_dir+'/'+operator+'/typedefs.h', {'<hls_video.h>': '#include "hls_video.h"'}) 
-    self.shell.replace_lines(self.syn_dir+'/'+operator+'/typedefs.h', {'gmp': ''}) 
-    self.shell.replace_lines(self.syn_dir+'/'+operator+'/typedefs.h', {'#define __TYPEDEFS_H__': '#define __TYPEDEFS_H__\n#define RISCV'}) 
-    self.shell.cp_file('input_src/'+self.prflow_params['benchmark_name']+'/operators/'+operator+'.*', self.syn_dir+'/'+operator)
-    self.shell.replace_lines(self.syn_dir+'/'+operator+'/'+operator+'.cpp', {'typedefs.h': '#include "typedefs.h"\n#include "firmware.h"'}) 
-    self.shell.replace_lines(self.syn_dir+'/'+operator+'/firmware.h', {'// operator': '#include "'+operator+'.h"'}) 
-    self.shell.replace_lines(self.syn_dir+'/'+operator+'/sections.lds', {'mem : ORIGIN': '         mem : ORIGIN = 0x00000000, LENGTH = '+LENGTH}) 
-    if debug_exist: self.shell.replace_lines(self.syn_dir+'/'+operator+'/print.cpp', {'#define OUTPORT': '#define OUTPORT (0x10000000+8*'+str(output_num)+')'})  
- 
-    # modify the run.sh shell for riscv
-    self.shell.write_lines(self.syn_dir+'/'+operator+'/leaf.v', self.verilog.return_page_v_list(page_num, operator, input_num, output_num, operator_arg_list, operator_width_list, True, True), False)
-    if riscv_bit == 'empty':
-      if self.prflow_params['back_end'] == 'slurm':
-        self.shell.replace_lines(self.syn_dir+'/'+operator+'/run.sh', {'vivado': 'source '+self.prflow_params['Xilinx_dir']+'\nvivado -mode batch -source syn_page.tcl\n'} )
-      else:
-        self.shell.replace_lines(self.syn_dir+'/'+operator+'/run.sh', {'vivado': 'source '+self.prflow_params['Xilinx_dir']+'\nvivado -mode batch -source syn_page.tcl\n'} )
-      self.shell.replace_lines(self.syn_dir+'/'+operator+'/src/picorv32_wrapper.v', {'parameter IS_TRIPLE': 'parameter IS_TRIPLE = '+str(is_triple)+','})
-      self.shell.replace_lines(self.syn_dir+'/'+operator+'/src/picorv32_wrapper.v', {'parameter MEM_SIZE': 'parameter MEM_SIZE = '+str(inst_mem_size)+','})
-      self.shell.replace_lines(self.syn_dir+'/'+operator+'/src/picorv32_wrapper.v', {'parameter ADDR_BITS': 'parameter ADDR_BITS = '+str(inst_mem_bits)})
-    else:
-      self.shell.replace_lines(self.syn_dir+'/'+operator+'/run.sh', {'vivado': 'touch page_netlist.dcp\n'} )
-      
-    os.system('chmod +x '+self.syn_dir+'/'+operator+'/run.sh')
- 
-
-
-  def prepare_HW(self, operator, page_num):
+  def prepare_HW(self, operator):
     # If the map target is Hardware, we need to prepare the HDL files and scripts to compile it.
     self.shell.mkdir(self.syn_dir+'/'+operator+'/src')
     file_list = [ 'Config_Controls.v', 'write_queue.v',        'rise_detect.v',         'read_queue.v',     'converge_ctrl.v',
@@ -233,6 +112,16 @@ class syn(gen_basic):
     # Prepare the shell script to run vivado
     self.shell.write_lines(self.syn_dir+'/'+operator+'/run.sh', self.shell.return_run_sh_list(self.prflow_params['Xilinx_dir'], 'syn_page.tcl', self.prflow_params['back_end']), True)
 
+  def prepare_false(self, operator):
+    # If the map target is Hardware, we need to prepare the HDL files and scripts to compile it.
+    self.shell.mkdir(self.syn_dir+'/'+operator+'/src')
+
+    # Prepare the shell script to run vivado
+    str_list = ['#!/bin/bash -e',
+                'touch page_netlist.dcp',
+                'echo \'syn: 0 seconds > runLog_'+operator+'.log\'']
+    self.shell.write_lines(self.syn_dir+'/'+operator+'/run.sh', str_list, True)
+
 
 
   # create one directory for each page 
@@ -251,13 +140,10 @@ class syn(gen_basic):
                                                                                                   self.prflow_params['node'], 
                                                                                                    ), True)
  
-    if map_target == 'HW' or  map_target == 'HIPR': 
-      self.prepare_HW(operator, page_num)
+    if map_target == 'HIPR': 
+      self.prepare_HW(operator)
     else:
-      # prepare script files for riscv implementation.
-      # As we don't need to compile any verilog files, we only need to perform 
-      # RISC-V compile flow
-      self.prepare_RISCV(operator, page_num, input_num, output_num)
+      self.prepare_false(operator)
 
 
   def run(self, operator):
