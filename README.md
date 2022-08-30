@@ -198,7 +198,7 @@ Make -j$(nproc)
 6. Run the command below to get the runtime of the application. You can see the runtime for rendering512 is 1.58 ms.
 
 ```c
-cat ./workspace/F005_bits_rendering512_200M/opencl_summary.csv
+cat ./workspace/F005_bits_rendering512_all_200M/opencl_summary.csv
 ```
 
 ![](images/runtime_all.png)
