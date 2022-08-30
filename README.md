@@ -159,9 +159,11 @@ cat ./workspace/F005_bits_rendering512_200M/opencl_summary.csv
 ![](images/runtime_one.png)
 
 
-7. In the terminal type `make report`, you will see the resource, compile time and STA timing reports as below.
+7. In the terminal type `make report`, you will see the resource, compile time and STA timing reports as below. 
 
 ![](images/report_one.png)
+
+8. You can change [input_src/rendering512/operators/data_redir_m.cpp](input_src/rendering512/operators/data_redir_m.cpp) and type `make`, you will see the HiPR only re-compile function `data_redir_m` only.
 
 
 ## 6 Tutorial 4: Map all Operators to PR Regions
@@ -205,6 +207,10 @@ cat ./workspace/F005_bits_rendering512_200M/opencl_summary.csv
 7. In the terminal type `make report`, you will see the resource, compile time and STA timing reports as below.
 
 ![](images/report_all.png)
+
+8. You can change any files in [input_src/rendering512_all/operators](input_src/rendering512_all/operators) and type `Make -j$(nproc)`, you will see the HiPR only re-compile modified functions in parallel.
+
+
 
 
 
