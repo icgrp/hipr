@@ -104,10 +104,7 @@ for each [operator](input_src/rendering512/operators/data_redir_m.h).
 ```
 
 5. We use a **top** function in [./input_src/rendering512/host/top.cpp](./input_src/rendering512/host/top.cpp)
-to show how to connect different operators together. Our python script 
-([runtime.py](./pr_flow/runtime.py)) can
-parse the top.cpp and operator header files to extract the interconnection,
-and generate the configuration packets.
+to show how to connect different operators together.
  
 ## 3 Tutorial 1: Software Simulation
 Go to [./input_src/rendering512](input_src/rendering512) and type `make`, you will get the software simulation to run. The results are as below.
