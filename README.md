@@ -159,7 +159,7 @@ cat ./workspace/F005_bits_rendering512_200M/opencl_summary.csv
 ![](images/runtime_one.png)
 
 
-7. In the terminal type `make report`, you will see the resource, compile time and STA timing reports as below. 
+7. In the terminal type `make report`, you will see the resource, compile time and STA timing reports as below. As you can see, we only define function `data_redir_m` as partial reconfigurable.
 
 ![](images/report_one.png)
 
@@ -204,7 +204,7 @@ cat ./workspace/F005_bits_rendering512_200M/opencl_summary.csv
 ![](images/runtime_all.png)
 
 
-7. In the terminal type `make report`, you will see the resource, compile time and STA timing reports as below.
+7. In the terminal type `make report`, you will see the resource, compile time and STA timing reports as below. As you can see, we define all the sub-functions as partial reconfigurable.
 
 ![](images/report_all.png)
 
