@@ -99,7 +99,7 @@ input_src/rendering512/
 for each [operator](input_src/rendering512/operators/data_redir_m.h).
 
 ```c
-#pragma map_target = HIPR page_num = 13 inst_mem_size = 32768
+#pragma map_target = HIPR
 #pragma clb =4 ff = 1 bram =2.4 dsp =1.2
 ```
 
