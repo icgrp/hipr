@@ -1,6 +1,5 @@
 
 freq=200M
-
 prj_name=rendering512
 
 
