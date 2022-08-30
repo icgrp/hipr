@@ -123,7 +123,8 @@ make install
 
 ## 5 Tutorial 3: Map one Operator to one PR Region
 
-1. In the [Makefile](./Makefile), change the **prj_name** to **rendering512**. You can also change the frequency you want.
+1. In the [Makefile](./Makefile), change the **prj_name** to **rendering512**. You can also change the frequency you want. Currently, we support 100MHz, 150MHz, 200MHz, 250MHz, 300MHz.
+
 ```c
     prj_name=rendering512
     freq=200M
@@ -165,7 +166,8 @@ cat ./workspace/F005_bits_rendering512_200M/opencl_summary.csv
 
 ## 6 Tutorial 4: Map all Operators to PR Regions
 
-1. In the [Makefile](./Makefile), change the **prj_name** to **rendering512**. You can also change the frequency you want.
+1. In the [Makefile](./Makefile), change the **prj_name** to **rendering512**. You can also change the frequency you want. Currently, we support 100MHz, 150MHz, 200MHz, 250MHz, 300MHz.
+
 ```c
     prj_name=rendering512_all
     freq=200M
