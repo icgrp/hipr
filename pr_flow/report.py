@@ -114,7 +114,7 @@ class report(gen_basic):
       #####################################################################################
       #process timing report
       try:
-        file_name = './workspace/F004_impl_'+benchmark_name + '_' + self.prflow_params['freq'] +'/' + fun_name + '/timing_page'+str(page_num)+'.rpt'
+        file_name = './workspace/F004_impl_'+benchmark_name + '_' + self.prflow_params['freq'] +'/' + fun_name + '/timing_page.rpt'
         file_in = open(file_name, 'r')
         find_summary_flag = False
         line_offset = 0

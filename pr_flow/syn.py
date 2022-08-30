@@ -119,7 +119,7 @@ class syn(gen_basic):
     # Prepare the shell script to run vivado
     str_list = ['#!/bin/bash -e',
                 'touch page_netlist.dcp',
-                'echo \'syn: 0 seconds > runLog_'+operator+'.log\'']
+                'echo \'syn: 0 seconds\' > runLog_'+operator+'.log']
     self.shell.write_lines(self.syn_dir+'/'+operator+'/run.sh', str_list, True)
 
 

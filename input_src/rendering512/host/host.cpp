@@ -36,7 +36,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "input_data.h"
 
 
-#define CONFIG_SIZE 12
+#define CONFIG_SIZE 4
 #define INPUT_SIZE (NUM_3D_TRI/4)
 #define OUTPUT_SIZE (NUM_FB/16)
 
@@ -154,7 +154,7 @@ int main(int argc, char **argv)
     //{
 
       in1[0].range(63, 32) = 0x00000000;
-      in1[0].range(31,  0) = 0x00000000;
+      in1[0].range(31,  0) = 0x00000002;
 
       in1[1].range(63, 32) = 0x00000000;
       in1[1].range(31,  0) = INPUT_SIZE;

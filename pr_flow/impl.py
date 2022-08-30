@@ -42,7 +42,7 @@ class impl(gen_basic):
     str_list = ['#!/bin/bash -e',
                 'touch ../../F005_bits_'+self.prflow_params['benchmark_name']+'_'+self.prflow_params['freq']+'/'+operator+'.bit']
     self.shell.write_lines(self.pr_dir+'/'+operator+'/run.sh', str_list, True)
-    str_list = ['read_checkpoint: 0 seconds'
+    str_list = ['read_checkpoint: 0 seconds',
                 'opt: 0 seconds',
                 'place: 0 seconds',
                 'opt_physical: 0 seconds',
