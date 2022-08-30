@@ -187,7 +187,7 @@ Make -j$(nproc)
 
 4. Type `make run`, you will see the results below.
 
-![](images/bunny_all.png)
+![](images/bunny.png)
 
 5. If you see errors below, just type `make run` again. This error may show several times. We believe it is a bug from `Xilinx Runtime`.
 
