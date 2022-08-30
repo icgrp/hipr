@@ -114,20 +114,22 @@ Go to [./input_src/rendering512](input_src/rendering512) and type `make`, you wi
 
 ![](./images/csimu.png)
 
-## 4 Tutorial 2: Map all Operators to PR regions.
-1. Below you compile any applications, you need to install the necessary setup files by executing commands as below. This step can take hours.
+## 4 Tutorial 2: Install Setup Files
+1. Below you compile any applications, you need to install the necessary setup files by executing commands as below. This step can take hours. The setup files can be reused by different applications.
 
 ```c
 make install
 ```
 
-2. In the [Makefile](./Makefile), change the **prj_name** to **rendering512**. You can also change the frequency you want.
+## 5 Tutorial 3: Map one Operator to one PR Region
+
+1. In the [Makefile](./Makefile), change the **prj_name** to **rendering512**. You can also change the frequency you want.
 ```c
     prj_name=rendering512
     freq=200M
 ```
 
-3. Type '**Make -j$(nproc)**'. It will generate all the necessary DCP and 
+2. Type '**Make -j$(nproc)**'. It will generate all the necessary DCP and 
 bitstream files automatically. Different operators can be compiled in 
 parallel according to the thread number of your local machine. Be careful
 with the memory requirements, when you use multi-threads to compile the 
@@ -137,11 +139,15 @@ memory.
 Make -j$(nproc)
 ```
 
-4. After all the compile tasks are completed, you can see the abstract shell dcp for each DFX pages under [.workspace/F001_overlay_rendering512_200M/au50_dfx_hipr/checkpoint](workspace/F001_overlay_rendering512_200M/au50_dfx_hipr/checkpoint).
+3. After all the compile tasks are completed, you can see the abstract shell dcp for each DFX pages under [.workspace/F001_overlay_rendering512_200M/au50_dfx_hipr/checkpoint](workspace/F001_overlay_rendering512_200M/au50_dfx_hipr/checkpoint).
 
-5. Type `make run`, you will see the results below.
+4. Type `make run`, you will see the results below.
 
-![](images/bunny.png)
+![](images/bunny_one.png)
+
+5. If you see errors below, just type `make run` again. This error may show several times. We believe it is a bug from `Xilinx Runtime`.
+
+![](images/error.png)
 
 6. Run the command below to get the runtime of the application. You can see the runtime for rendering512 is 1.58 ms.
 
@@ -149,15 +155,54 @@ Make -j$(nproc)
 cat ./workspace/F005_bits_rendering512_200M/opencl_summary.csv
 ```
 
-![](images/runtime.png)
+![](images/runtime_one.png)
 
 
 7. In the terminal type `make report`, you will see the resource, compile time and STA timing reports as below.
 
-![](images/report.png)
+![](images/report_one.png)
 
 
+## 6 Tutorial 4: Map all Operators to PR Regions
 
+1. In the [Makefile](./Makefile), change the **prj_name** to **rendering512**. You can also change the frequency you want.
+```c
+    prj_name=rendering512_all
+    freq=200M
+```
+
+2. Type '**Make -j$(nproc)**'. It will generate all the necessary DCP and 
+bitstream files automatically. Different operators can be compiled in 
+parallel according to the thread number of your local machine. Be careful
+with the memory requirements, when you use multi-threads to compile the 
+project. When I use 4 threads to compile, I at least need 32 GB DDR 
+memory.
+```c
+Make -j$(nproc)
+```
+
+3. After all the compile tasks are completed, you can see the abstract shell dcp for each DFX pages under [.workspace/F001_overlay_rendering512_200M/au50_dfx_hipr/checkpoint](workspace/F001_overlay_rendering512_200M/au50_dfx_hipr/checkpoint).
+
+4. Type `make run`, you will see the results below.
+
+![](images/bunny_all.png)
+
+5. If you see errors below, just type `make run` again. This error may show several times. We believe it is a bug from `Xilinx Runtime`.
+
+![](images/error.png)
+
+6. Run the command below to get the runtime of the application. You can see the runtime for rendering512 is 1.58 ms.
+
+```c
+cat ./workspace/F005_bits_rendering512_200M/opencl_summary.csv
+```
+
+![](images/runtime_all.png)
+
+
+7. In the terminal type `make report`, you will see the resource, compile time and STA timing reports as below.
+
+![](images/report_all.png)
 
 
 
