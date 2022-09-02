@@ -1,7 +1,7 @@
 
 freq=200M
-prj_name=rendering512
 
+prj_name=rendering512
 
 
 prefix=/opt
@@ -34,12 +34,14 @@ operators_ip_targets=$(foreach n, $(operators), $(ws_mbft)/ip_repo/$(n)/prj/floo
 mono_bft_target=$(ws_mbft)/prj/floorplan_static.runs/impl_1/floorplan_static_wrapper.bit
 download_target=$(ws_bit)/download.tcl 
 config_target=$(ws_mbft)/config.cpp 
-ydma=$(ws_ydma)/__ydma_is_ready__
-ydma_100M=$(ws)/F000_ydma_100M/__ydma_is_ready__
-ydma_150M=$(ws)/F000_ydma_150M/__ydma_is_ready__
-ydma_200M=$(ws)/F000_ydma_200M/__ydma_is_ready__
-ydma_250M=$(ws)/F000_ydma_250M/__ydma_is_ready__
-ydma_300M=$(ws)/F000_ydma_300M/__ydma_is_ready__
+
+freq_start=100
+freq_end  =301
+freq_diff = 50
+freq_sweep=$(shell seq $(freq_start) $(freq_diff) $(freq_end))
+
+ydma_targets=$(foreach n, $(freq_sweep), $(ws)/F000_ydma_$(n)M/__ydma_is_ready__)
+
 
 
 overlay_type=hipr
@@ -48,7 +50,6 @@ overlay_suffix=_$(prj_name)_$(freq)
 endif
 
 
-# all: $(mono_target)
 all: $(operators_runtime_target)
 
 mono: $(mono_target)
@@ -146,28 +147,17 @@ $(ws_overlay)$(overlay_suffix)/__overlay_is_ready__: ./common/configure/configur
 	python3 pr_flow.py $(prj_name) -g -f $(freq) -op '$(basename $(notdir $(operators_bit_targets)))'
 	cd ./workspace/F001_overlay$(overlay_suffix) && ./main.sh
 
+# 
 #ydma:$(ydma) 
 #$(ydma):./common/ydma/src/ydma.cpp 
 #	python3 pr_flow.py  $(prj_name) -y -f $(freq)
 #	cd $(ws_ydma) && ./main.sh
 
-install: $(ydma_100M) $(ydma_150M) $(ydma_200M) $(ydma_250M) $(ydma_300M) 
 
-$(ydma_100M):./common/ydma/src/ydma.cpp 
-	python3 pr_flow.py  $(prj_name) -y -f 100M && cd $(ws)/F000_ydma_100M && ./main.sh
+install: $(ydma_targets) 
 
-$(ydma_150M):./common/ydma/src/ydma.cpp 
-	python3 pr_flow.py  $(prj_name) -y -f 150M && cd $(ws)/F000_ydma_150M && ./main.sh
-
-$(ydma_200M):./common/ydma/src/ydma.cpp 
-	python3 pr_flow.py  $(prj_name) -y -f 200M && cd $(ws)/F000_ydma_200M && ./main.sh
-
-$(ydma_250M):./common/ydma/src/ydma.cpp 
-	python3 pr_flow.py  $(prj_name) -y -f 250M && cd $(ws)/F000_ydma_250M && ./main.sh
-
-$(ydma_300M):./common/ydma/src/ydma.cpp 
-	python3 pr_flow.py  $(prj_name) -y -f 300M && cd $(ws)/F000_ydma_300M && ./main.sh
-
+$(ydma_targets):$(ws)/F000_ydma_%/__ydma_is_ready__:./common/ydma/src/ydma.cpp
+	python3 pr_flow.py $(prj_name) -y -f $(subst /__ydma_is_ready__,,$(subst $(ws)/F000_ydma_,,$@)) && cd $(subst /__ydma_is_ready__,,$@) && ./main.sh
 
 
 	

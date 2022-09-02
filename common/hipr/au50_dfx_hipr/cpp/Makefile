@@ -5,7 +5,7 @@ GUROBI_DIR=/opt/gurobi951/linux64
 INC=-I$(GUROBI_DIR)/include/
 LIB=-L$(GUROBI_DIR)/lib/ -lgurobi_c++ -lgurobi95 -lm
 src=./src
-app=rendering512
+app=bnn512
 m=
 all: main
 	date

@@ -28,12 +28,12 @@ class overlay(gen_basic):
     list_out  = []
     for connect in connection_list:
       connect_list = connect.split('->')
-      str_ele = connect_list[0].split('.')[0]+'\t'+connect_list[1].split('.')[0]
+      str_ele = connect_list[0].split('.')[0]+'\t'+connect_list[1].split('.')[0]+' '+connect_list[2]
       # if (str_ele.replace('DMA', '') == str_ele): list_out.append(str_ele) 
       list_out.append(str_ele) 
       #list_out.append(connect_list[0].split('.')[0]+'\t'+connect_list[1].split('.')[0]) 
     # list_out = set(list_out)
-    file_out = open(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/cpp/src/app/connect.txt', 'w')
+    file_out = open(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/cpp/src/app/'+self.prflow_params['benchmark_name']+'/connect.txt', 'w')
     for line in list_out: file_out.write(line+'\n')
     file_out.close()
 
@@ -162,7 +162,7 @@ class overlay(gen_basic):
     subs_str+='  .Output_1_V_TDATA(v2_buffer_V_dout),\n'
     subs_str+='  .Output_1_V_TVALID(v2_buffer_V_empty_n),\n'
     subs_str+='  .Output_1_V_TREADY(Loop_VITIS_LOOP_36_4_proc4_U0_v2_buffer_V_read),\n'
-    subs_str+='  .ap_start(ap_start)\n'
+    subs_str+='  .ap_start(mono_start)\n'
     subs_str+=');\n'
     self.shell.replace_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/src4level2/ydma_bb/ydma.v', {'ydma_fifo_w512_d1024_A': subs_str})
 
@@ -213,10 +213,12 @@ class overlay(gen_basic):
     self.shell.replace_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/Makefile', {'vitis_impl_tcl_name=': 'vitis_impl_tcl_name='+self.prflow_params['top_name']})
     self.shell.replace_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/Makefile', {'app='                : 'app='+self.prflow_params['benchmark_name']})
 
-  def update_resource_pragma(self, operators):
+  def update_resource_pragma_init(self, operators):
+    init_str_list = ['op x y w h']
     pragma_dict = {}
     str_operators = ''
     for operator in operators.split():
+      init_str_list.append(operator+' 0 0 1 1')
       target_exist, target = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+operator+'.h', 'map_target') 
       if target_exist == True and target == 'HIPR':
         cls_exist,  value_c = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+operator+'.h', 'clb') 
@@ -228,7 +230,9 @@ class overlay(gen_basic):
       else:
         pragma_dict[operator] = ['1', '1', '1', '1']
 
+    os.system('mkdir -p '+self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/cpp/src/app/'+self.prflow_params['benchmark_name'])
     file_out = open(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/cpp/src/app/'+self.prflow_params['benchmark_name']+'/pragma.txt', 'w')
+    self.shell.write_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/cpp/src/app/'+self.prflow_params['benchmark_name']+'/initial.txt', init_str_list)
     for key, value in sorted(pragma_dict.items()):
       # print key.ljust(30)+'\t'+'\t'.join(value)+'\n'
       file_out.write(key.ljust(30)+'\t'+'\t'.join(value)+'\n')
@@ -262,7 +266,7 @@ class overlay(gen_basic):
     self.update_cad_path(operators, hipr_pages_list)
 
     # update the pragma for hipr ovelay generation
-    self.update_resource_pragma(operators)
+    self.update_resource_pragma_init(operators)
 
     # generate shell files for local run
     self.create_shell_file(operators)

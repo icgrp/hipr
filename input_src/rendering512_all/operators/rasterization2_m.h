@@ -9,7 +9,7 @@ void rasterization2_m (
 		hls::stream<ap_uint<32> > & Output_4
 		);
 #pragma map_target = HIPR 
-#pragma  clb =4 ff = 1 bram =2.4 dsp =1.2
+#pragma  clb =4 ff = 1 bram =6 dsp =1.2
 
 
 

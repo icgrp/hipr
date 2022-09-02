@@ -60,7 +60,7 @@ class syn(gen_basic):
                   'stream_shell.v']
 
     # copy the necessary leaf interface verilog files for out-of-context compilation
-    for name in file_list: self.shell.cp_file(self.overlay_dir+'/src/'+name, self.syn_dir+'/'+operator+'/src/'+name)
+    for name in file_list: self.shell.cp_file('common/verilog_src/'+name, self.syn_dir+'/'+operator+'/src/'+name)
 
     # prepare the tcl files for out-of-context compilation
     if self.prflow_params['overlay_type'] == 'psnos':

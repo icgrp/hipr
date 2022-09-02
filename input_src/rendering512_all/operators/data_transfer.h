@@ -4,5 +4,5 @@ void data_transfer (
 		);
 
 #pragma map_target = HIPR 
-#pragma clb =8 ff = 1 bram =2.4 dsp =1.2
+#pragma clb =8 ff = 1 bram =6 dsp =1.2
 

@@ -262,7 +262,7 @@ class _verilog:
     for op in operator_arg_dict:
       out_list.append('\n  '+op+' '+op+'_inst(')
       out_list.append('    .ap_clk(ap_clk),')
-      out_list.append('    .ap_start(1\'b1),')
+      out_list.append('    .ap_start(ap_start),')
       out_list.append('    .ap_done(),')
       out_list.append('    .ap_idle(),')
       out_list.append('    .ap_ready(),')

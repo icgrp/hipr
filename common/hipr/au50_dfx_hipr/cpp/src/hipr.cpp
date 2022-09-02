@@ -1595,7 +1595,6 @@ void hipr::gen_xdc(void){
 		myfile << "set_property IS_SOFT TRUE [get_pblocks " << dfxs[i].name << "]" << endl;
 		myfile << "add_cells_to_pblock [get_pblocks " << dfxs[i].name;
 		myfile << "] [get_cells -quiet [list " << this->xdc_inst << "/ydma_1/mono_inst/" << dfxs[i].name << "_inst]] -quiet" << endl;
-
 	}
 	myfile.close();
 }

@@ -32,21 +32,12 @@ class report():
       resource_report_dict[fun_name] = fun_name.ljust(30)
       try:
         file_name = rpt_path+'/utilization_'+fun_name+'.rpt'
+
         file_list = self.file_to_list(file_name)
-        cfile_name = '../../../input_src/rendering512/operators/'+fun_name+'.h' 
-        cfile_list = self.file_to_list(cfile_name)
-        target = 'none'
-        for idx, line in enumerate(cfile_list):
-          if self.have_target_string(line, 'map_target'):
-            line_str  = line.replace('=', ' ')
-            line_list = line_str.split()
-            for idx, word in enumerate(line_list): 
-              if word == 'map_target': target = line_list[idx+1]  
-        
         for idx, line in enumerate(file_list):
           if self.have_target_string(line, 'Instance'):
             resource_list =  file_list[idx+2].replace(' ', '').split('|')
-            resource_report_dict[fun_name] += target
+            resource_report_dict[fun_name] += 'hipr  '
             resource_report_dict[fun_name] += '\t' + resource_list[3]
             resource_report_dict[fun_name] += '\t' + resource_list[7]
             bram_num = int(resource_list[8])*2+int(resource_list[9])+10

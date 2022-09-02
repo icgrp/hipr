@@ -1186,6 +1186,20 @@ ydma_fifo_w32_d2_S config_size_c_U(
     .if_read(Loop_VITIS_LOOP_32_2_proc2_U0_config_size_read)
 );
 
+reg mono_start;
+
+always@(posedge ap_clk) begin
+  if(ap_rst_n_inv) begin
+    mono_start <= 0;
+  end else begin
+    if(Loop_VITIS_LOOP_31_1_proc1_U0_v1_buffer_V_write && v1_buffer_V_full_n && Loop_VITIS_LOOP_31_1_proc1_U0_v1_buffer_V_din == 64'hffff_ffff_ffff_ffff) begin
+      mono_start <= 1'b1;
+    end else begin
+      mono_start <= mono_start;
+    end
+  end
+end
+
 ydma_fifo_w512_d1024_A v2_buffer_V_U(
 //    .clk(ap_clk),
 //    .reset(ap_rst_n_inv),

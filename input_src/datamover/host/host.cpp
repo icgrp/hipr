@@ -33,12 +33,11 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <fstream>
 #include <CL/cl2.hpp>
 #include "typedefs.h"
-#include "input_data.h"
-
+//#include "config.h"
 
 #define CONFIG_SIZE 4
-#define INPUT_SIZE (NUM_3D_TRI/4)
-#define OUTPUT_SIZE (NUM_FB/16)
+#define INPUT_SIZE MAX_X
+#define OUTPUT_SIZE MAX_X
 
 
 // Forward declaration of utility functions included at the end of this file
@@ -153,44 +152,28 @@ int main(int argc, char **argv)
     //for ( int i = 0; i < CONFIG_SIZE; i++)
     //{
 
-      in1[0].range(63, 32) = 0x00000000;
-      in1[0].range(31,  0) = 0x00000002;
+    in1[0].range(63, 32) = 0x00000000;
+    in1[0].range(31,  0) = 0x00000002;
 
-      in1[1].range(63, 32) = 0x00000000;
-      in1[1].range(31,  0) = INPUT_SIZE;
+    in1[1].range(63, 32) = 0x00000000;
+    in1[1].range(31,  0) = INPUT_SIZE;
 
-      in1[2].range(63, 32) = 0xffffffff;
-      in1[2].range(31,  0) = 0xffffffff;
+    in1[2].range(63, 32) = 0xffffffff;
+    in1[2].range(31,  0) = 0xffffffff;
 
-      in1[3].range(63, 32) = 0xffffffff;
-      in1[3].range(31,  0) = 0xffffffff;
+    in1[3].range(63, 32) = 0xffffffff;
+    in1[3].range(31,  0) = 0xffffffff;
 
 
-      // configure packets
 
-    for ( int i = 0; i < NUM_3D_TRI/4; i++)
-    {
-    	for (int j=0; j<4; j++){
-		  in2[i](128*j+7,  128*j+0)   = triangle_3ds[4*i+j].x0;
-		  in2[i](128*j+15, 128*j+8)   = triangle_3ds[4*i+j].y0;
-		  in2[i](128*j+23, 128*j+16)  = triangle_3ds[4*i+j].z0;
-		  in2[i](128*j+31, 128*j+24)  = triangle_3ds[4*i+j].x1;
-		  in2[i](128*j+39, 128*j+32)  = triangle_3ds[4*i+j].y1;
-		  in2[i](128*j+47, 128*j+40)  = triangle_3ds[4*i+j].z1;
-		  in2[i](128*j+55, 128*j+48)  = triangle_3ds[4*i+j].x2;
-		  in2[i](128*j+63, 128*j+56)  = triangle_3ds[4*i+j].y2;
-		  in2[i](128*j+71, 128*j+64)  = triangle_3ds[4*i+j].z2;
-		  in2[i](128*j+127,128*j+72)  = 0;
-    	}
-    }
-/*
-    for ( int i = 0; i < NUM_3D_TRI; i++)
-    {
-      in2[3*i]   = 3*i;
-      in2[3*i+1] = 3*i+1;
-      in2[3*i+2] = 3*i+2;
-    }
-*/
+    // configure packets
+
+  for ( int i = 0; i < INPUT_SIZE; i++)
+  {
+    in2[i] = i;
+  }
+
+
 
     // ------------------------------------------------------------------------------------
     // Step 3: Run the kernel
@@ -204,7 +187,6 @@ int main(int argc, char **argv)
 	krnl_ydma.setArg(3, out2_buf);
 	krnl_ydma.setArg(4, CONFIG_SIZE);
 	krnl_ydma.setArg(5, INPUT_SIZE);
-	//krnl_ydma.setArg(6, INPUT_SIZE);
 	krnl_ydma.setArg(6, OUTPUT_SIZE);
 
 	// Schedule transfer of inputs to device memory, execution of kernel, and transfer of outputs back to host memory
@@ -222,12 +204,14 @@ int main(int argc, char **argv)
     // ------------------------------------------------------------------------------------
     bool match = true;
     check_results(out2);
-    // for(int i=0; i<CONFIG_SIZE; i++){
-    int max_config = CONFIG_SIZE > 20 ? 20: CONFIG_SIZE;
-    for(int i=0; i<max_config; i++){
-        printf("%d: %08x_%08x\n", i, (unsigned int)out1[i].range(63, 32), (unsigned int) out1[i].range(31, 0));
-    	//std::cout << "out1[" << i << "]=" << out1[i] << std::endl;
-    }
+
+    //for(int i=0; i<CONFIG_SIZE; i++){
+    int out_max;
+    out_max = CONFIG_SIZE > 40 ? 40 : CONFIG_SIZE;
+    for(int i=0; i<out_max; i++){
+            printf("%d: %08x_%08x\n", i, (unsigned int)out1[i].range(63, 32), (unsigned int) out1[i].range(31, 0));
+        	//std::cout << "out1[" << i << "]=" << out1[i] << std::endl;
+        }
     
     delete[] fileBuf;
 
@@ -287,47 +271,15 @@ char *read_binary_file(const std::string &xclbin_file_name, unsigned &nb)
 
 void check_results(bit512* output)
 {
-    bit8 frame_buffer_print[MAX_X][MAX_Y];
-
+    unsigned int tmp;
     // read result from the 32-bit output buffer
-    for (int i=0; i<NUM_FB/16; i++){
-      for(int j=0; j<64; j++){
-        int n=i*64+j;
-        int row = n/256;
-        int col = n%256;
-        frame_buffer_print[row][col] = output[i](8*j+7, 8*j);
-      }
-    }
-
-  // print result
-  {
-    for (int j = MAX_X - 1; j >= 0; j -- )
-    {
-      for (int i = 0; i < MAX_Y; i ++ )
-      {
-        int pix;
-        pix = frame_buffer_print[i][j].to_int();
-        if (pix){
-          std::cout << "1";
-        }else{
-          std::cout << "0";
-        }
+    //for (int i=0; i<NUM_FB/16; i++){
+    for (int i=0; i<MAX_X; i++){
+      std::cout << "data[" << i << "]=";
+      for(int j=15; j>=0; j--){
+        tmp = output[i](j*32+31, j*32);
+        std::cout << tmp << " ";
       }
       std::cout << std::endl;
     }
-  }
-
 }
-/*
-void check_results(bit32* output)
-{
-  #ifndef SW
-
-    // read result from the 32-bit output buffer
-    for (int i = 0; i<NUM_FB; i++)
-    {
-      printf("i=%d, %d\n", i, (int) output[i]); 
-    }
-  #endif
-}
-*/

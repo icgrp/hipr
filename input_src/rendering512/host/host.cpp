@@ -159,6 +159,14 @@ int main(int argc, char **argv)
       in1[1].range(63, 32) = 0x00000000;
       in1[1].range(31,  0) = INPUT_SIZE;
 
+      in1[2].range(63, 32) = 0xffffffff;
+      in1[2].range(31,  0) = 0xffffffff;
+
+      in1[3].range(63, 32) = 0xffffffff;
+      in1[3].range(31,  0) = 0xffffffff;
+
+
+
       // configure packets
 
     for ( int i = 0; i < NUM_3D_TRI/4; i++)
