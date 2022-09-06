@@ -1,8 +1,0 @@
-op x y w h
-coloringFB_bot_m 0 1 1 1
-coloringFB_top_m 1 1 1 1
-data_redir_m     2 2 1 1
-data_transfer    2 2 1 1
-rasterization2_m 3 3 1 1
-zculling_bot     4 3 1 1
-zculling_top     3 3 1 1

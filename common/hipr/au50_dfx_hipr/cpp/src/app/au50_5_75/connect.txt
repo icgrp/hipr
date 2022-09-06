@@ -1,7 +1,0 @@
-rec3	rec5	38
-rec5	rec1	20
-rec1	rec2	23
-rec2	rec1	30
-rec3	rec1	17
-DMA	rec1	512
-rec1	DMA	512

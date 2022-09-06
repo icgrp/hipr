@@ -1,7 +1,0 @@
-coloringFB_bot_m              	1	1	1	1
-coloringFB_top_m              	1	1	1	1
-data_redir_m                  	1	1	1	1
-data_transfer                 	1	1	1	1
-rasterization2_m              	1	1	1	1
-zculling_bot                  	1	1	1	1
-zculling_top                  	1	1	1	1

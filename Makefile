@@ -41,7 +41,7 @@ freq_diff = 50
 freq_sweep=$(shell seq $(freq_start) $(freq_diff) $(freq_end))
 
 ydma_targets=$(foreach n, $(freq_sweep), $(ws)/F000_ydma_$(n)M/__ydma_is_ready__)
-
+ydma=$(ws)/F000_ydma_$(freq)/__ydma_is_ready__
 
 
 overlay_type=hipr

@@ -1,7 +1,0 @@
-coloringFB_bot_m              nopr	278	 484	20	0
-coloringFB_top_m              nopr	5452 2892	20	0
-data_redir_m                  nopr	1336 916	20	6
-data_transfer                 nopr	491  1827	20	0
-rasterization2_m              nopr	2687 2243	20	12
-zculling_bot                  nopr	796	 495	20	0
-zculling_top                  nopr	796	 495	20	0

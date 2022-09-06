@@ -1,6 +1,0 @@
-op x y w h
-rec1	 0 1 1 1
-rec2	 0 1 1 1
-rec3	 0 1 1 1
-rec4	 0 1 1 1
-rec5	 0 1 1 1
