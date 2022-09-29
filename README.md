@@ -6,7 +6,7 @@ The pre-print manuscript of our paper can be found at https://ic.ese.upenn.edu/p
 ```
 @inproceedings{hipr_fpl2022,
   title={{HiPR}: High-level Partial Reconfiguration for Fast Incremental {FPGA} Compilation},
-  author={Yuanlong Xiao, Aditya Hota, Dongjoon Park, and André DeHon},
+  author={Yuanlong Xiao and Aditya Hota and Dongjoon Park and Andre\' DeHon},
   booktitle={2022 32nd International Conference on Field Programmable Logic and Applications (FPL)},
   pages={1--9},
   year={2022},
