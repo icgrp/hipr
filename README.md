@@ -4,12 +4,12 @@ We will use the **rendering512** on the local machine as an example. We will re
 
 The pre-print manuscript of our paper can be found at https://ic.ese.upenn.edu/pdf/hipr_fpl2022.pdf.
 ```
-@inproceedings{kapre2015hoplite,
-  title={Hoplite: Building austere overlay {NoCs} for {FPGAs}},
-  author={Kapre, Nachiket and Gray, Jan},
-  booktitle={2015 25th International Conference on Field Programmable Logic and Applications (FPL)},
-  pages={1--8},
-  year={2015},
+@inproceedings{hipr_fpl2022,
+  title={{HiPR}: High-level Partial Reconfiguration for Fast Incremental {FPGA} Compilation},
+  author={Yuanlong Xiao, Aditya Hota, Dongjoon Park, and André DeHon},
+  booktitle={2022 32nd International Conference on Field Programmable Logic and Applications (FPL)},
+  pages={1--9},
+  year={2022},
   organization={IEEE}
 }
 ```
