@@ -3,7 +3,7 @@ HiPR is a python-based framework on top of [Vitis 2021.1](https://www.xilinx.com
 We will use the **rendering512** on the local machine as an example. We will release **google cloud** flow and **other benchmarks** soon later.
 
 The pre-print manuscript of our paper can be found at https://ic.ese.upenn.edu/pdf/hipr_fpl2022.pdf.
-···
+```
 @inproceedings{kapre2015hoplite,
   title={Hoplite: Building austere overlay {NoCs} for {FPGAs}},
   author={Kapre, Nachiket and Gray, Jan},
@@ -12,7 +12,7 @@ The pre-print manuscript of our paper can be found at https://ic.ese.upenn.edu/p
   year={2015},
   organization={IEEE}
 }
-···
+```
 
 ## 1 Tool Setup
 
