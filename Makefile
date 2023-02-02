@@ -8,7 +8,7 @@ prefix=/opt
 platform_name=zcu102
 src=./common/verilog_src
 ws=workspace
-
+m=$(shell date)
 ws_ydma=$(ws)/F000_ydma_$(freq)
 ws_sdk=$(ws)/F007_sdk_$(prj_name)
 ws_overlay=$(ws)/F001_overlay
@@ -190,6 +190,12 @@ clear:
 
 upload:
 	scp $(ws_bit)/sd_card/* root@yueboard.seas.upenn.edu:/mnt
+
+git:
+	git add .
+	git commit -m "$(m)"
+	git push origin au280_2022.1
+
 
 
 git_clean:
