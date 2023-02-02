@@ -4,24 +4,26 @@ import os
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('workspace')
+parser.add_argument('impl_dir')
 parser.add_argument('-t', '--top',       type=str, default="no_func", help="set top function name for out of context synthesis")
 parser.add_argument('-f', '--file_name', type=str, default="no_func", help="set output file name prefix")
 parser.add_argument('-a', '--app_name',  type=str, default="no_func", help="set output file name prefix")
 
 args      = parser.parse_args()
-workspace = args.workspace
+impl_dir  = args.impl_dir
 top_name  = args.top
 file_name = args.file_name
 app_name  = args.app_name
 
-F001_dir=''
+board='yboard_101'
+F001_dir='F001_overlay_zcu102_1_200M'
 
 
 
 # prepare the tcl file to restore the top dcp file
-file_in = open(workspace+'/_x/link/vivado/vpl/prj/prj.runs/impl_1/'+file_name+'.tcl', 'r')
-file_out = open(workspace+'/_x/link/vivado/vpl/prj/prj.runs/impl_1/'+file_name+'_mk_overlay_'+app_name+'.tcl', 'w')
+os.system('cp '+impl_dir+'/'+file_name+'.tcl '+impl_dir+'/.'+file_name+'_mk_overlay_'+app_name+'.tcl')
+file_in  = open(impl_dir+'/.'+file_name+'_mk_overlay_'+app_name+'.tcl', 'r')
+file_out = open(impl_dir+'/'+file_name+'_mk_overlay_'+app_name+'.tcl', 'w')
 
 copy_enable = True
 for line in file_in:
@@ -29,54 +31,103 @@ for line in file_in:
     if (line.replace('add_files', '') != line):
       file_out.write('# ' + line)
     elif (line.replace('write_checkpoint -force', '') != line):
-      file_out.write('write_checkpoint -force design_route.dcp\n')
+      # file_out.write('write_checkpoint -force design_route_'+app_name+'.dcp\n')
+      file_out.write('write_checkpoint -force ../../../../../../../../../../'+str(F001_dir)+'/'+board+'_dfx_hipr/checkpoint/overlay.dcp\n')
+    elif (line.replace('report_timing_summary', '') != line):
+      file_out.write('report_timing_summary > ../../../../../../../../../../'+str(F001_dir)+'/'+board+'_dfx_hipr/checkpoint/overlay_timing.rpt \n')
     elif (line.replace('write_bitstream -force', '') != line):
       file_out.write('\n')
-      for p in range(2, 24): file_out.write('report_utilization -pblocks p_'+str(p)+' > ../../../../../../../../../utilization'+str(p)+'.rpt\n') # utilization_anchor
       file_out.write('pr_recombine -cell level0_i/ulp\n')
-      file_out.write('write_bitstream -force -cell level0_i/ulp ./dynamic_region.bit\n')
+      file_out.write('write_bitstream -force -cell level0_i/ulp ./dynamic_region_'+app_name+'.bit\n')
     elif (line.replace('set_property SCOPED_TO_CELLS', '') != line):
       file_out.write('# ' + line)
-      file_out.write('add_files ../../../../../../../au50_dfx_hipr/checkpoint/hw_bb_divided.dcp\n') # hw_bb_divided_anchor
-      # page_dcp_anchor
+      file_out.write('add_files ../../../../../../../../../../'+str(F001_dir)+'/au50_dfx_hipr/checkpoint/hw_bb_divided.dcp\n')
+      # file_out.write('add_files ../../../../../../../../../../'+str(F001_dir)+'/place_holder/data_proc1_netlist_false.dcp\n')
+      #page_dcp_anchor 
+
       file_out.write('add_files ../../../../../../../../../../'+str(F001_dir)+'/au50_dfx_hipr/xdc/sub.xdc\n') 
-      file_out.write('set_property SCOPED_TO_CELLS {level0_i/ulp/ydma_1/page2_inst level0_i/ulp/ydma_1/page3_inst level0_i/ulp/ydma_1/page4_inst level0_i/ulp/ydma_1/page5_inst level0_i/ulp/ydma_1/page6_inst level0_i/ulp/ydma_1/page7_inst level0_i/ulp/ydma_1/page8_inst level0_i/ulp/ydma_1/page9_inst level0_i/ulp/ydma_1/page10_inst level0_i/ulp/ydma_1/page11_inst level0_i/ulp/ydma_1/page12_inst level0_i/ulp/ydma_1/page13_inst level0_i/ulp/ydma_1/page14_inst level0_i/ulp/ydma_1/page15_inst level0_i/ulp/ydma_1/page16_inst level0_i/ulp/ydma_1/page17_inst level0_i/ulp/ydma_1/page18_inst  level0_i/ulp/ydma_1/page19_inst level0_i/ulp/ydma_1/page20_inst level0_i/ulp/ydma_1/page21_inst level0_i/ulp/ydma_1/page22_inst level0_i/ulp/ydma_1/page23_inst}  [get_files ../../../../../../../au50_dfx_hipr/checkpoint/page.dcp] \n') # scope_anchor
+      # file_out.write('set_property SCOPED_TO_CELLS {level0_i/ulp/increment_1/mono_inst/data_proc1_inst }  [get_files ../../../../../../../../../../'+str(F001_dir)+'/place_holder/data_proc1_netlist.dcp]\n')
+      #scope_anchor
+
       file_out.write('set_property USED_IN {implementation} [get_files ../../../../../../../../../../'+str(F001_dir)+'/au50_dfx_hipr/xdc/sub.xdc]\n')
       file_out.write('set_property PROCESSING_ORDER LATE [get_files ../../../../../../../../../../'+str(F001_dir)+'/au50_dfx_hipr/xdc/sub.xdc]\n')
     elif (line.replace('reconfig_partitions', '') != line):
       file_out.write('# ' + line)
-      file_out.write('link_design -mode default -part xcu50-fsvh2104-2-e -reconfig_partitions { level0_i/ulp/ydma_1/page2_inst level0_i/ulp/ydma_1/page3_inst level0_i/ulp/ydma_1/page4_inst level0_i/ulp/ydma_1/page5_inst level0_i/ulp/ydma_1/page6_inst level0_i/ulp/ydma_1/page7_inst level0_i/ulp/ydma_1/page8_inst level0_i/ulp/ydma_1/page9_inst level0_i/ulp/ydma_1/page10_inst level0_i/ulp/ydma_1/page11_inst level0_i/ulp/ydma_1/page12_inst level0_i/ulp/ydma_1/page13_inst level0_i/ulp/ydma_1/page14_inst level0_i/ulp/ydma_1/page15_inst level0_i/ulp/ydma_1/page16_inst level0_i/ulp/ydma_1/page17_inst level0_i/ulp/ydma_1/page18_inst  level0_i/ulp/ydma_1/page19_inst level0_i/ulp/ydma_1/page20_inst level0_i/ulp/ydma_1/page21_inst level0_i/ulp/ydma_1/page22_inst level0_i/ulp/ydma_1/page23_inst } -top level0_wrapper\n')
+      file_out.write('link_design -mode default -part xcu50-fsvh2104-2-e -reconfig_partitions {level0_i/ulp/increment_1/mono_inst/data_proc1_inst } -top level0_wrapper\n')
+    elif (line.replace('Report generation script generated by Vivado', '') != line):
+      file_out.write(line)
+      file_out.write('set logFileId [open ./impl_'+app_name+'.runtime \"w\"]\n')
+      file_out.write('set start_time [clock seconds]\n')
+    elif (line.replace('\"Phase: Opt Design\" START', '') != line):
+      file_out.write('set end_time [clock seconds]\n')
+      file_out.write('set total_seconds [expr $end_time - $start_time]\n')
+      file_out.write('puts $logFileId \"rdchk: $total_seconds seconds\"\n')
+      file_out.write('set start_time [clock seconds]\n')
+      file_out.write(line)
+    elif (line.replace('\"Phase: Place Design\" START', '') != line):
+      file_out.write('set end_time [clock seconds]\n')
+      file_out.write('set total_seconds [expr $end_time - $start_time]\n')
+      file_out.write('puts $logFileId \"opt: $total_seconds seconds\"\n')
+      file_out.write('set start_time [clock seconds]\n')
+      file_out.write(line)
+    elif (line.replace('\"Phase: Physical Opt Design\" START', '') != line):
+      file_out.write('set end_time [clock seconds]\n')
+      file_out.write('set total_seconds [expr $end_time - $start_time]\n')
+      file_out.write('puts $logFileId \"place: $total_seconds seconds\"\n')
+      file_out.write('set start_time [clock seconds]\n')
+      file_out.write(line)
+    elif (line.replace('\"Phase: Route Design\" START', '') != line):
+      file_out.write('set end_time [clock seconds]\n')
+      file_out.write('set total_seconds [expr $end_time - $start_time]\n')
+      file_out.write('puts $logFileId \"phys_opt: $total_seconds seconds\"\n')
+      file_out.write('set start_time [clock seconds]\n')
+      file_out.write(line)
+    elif (line.replace('\"Phase: Write Bitstream\" START', '') != line):
+      file_out.write('set end_time [clock seconds]\n')
+      file_out.write('set total_seconds [expr $end_time - $start_time]\n')
+      file_out.write('puts $logFileId \"route: $total_seconds seconds\"\n')
+      file_out.write('set start_time [clock seconds]\n')
+      file_out.write(line)
+    elif (line.replace('OPTRACE \"Phase: Write Bitstream\" END { }', '') != line):
+      file_out.write('set end_time [clock seconds]\n')
+      file_out.write('set total_seconds [expr $end_time - $start_time]\n')
+      file_out.write('puts $logFileId \"bit: $total_seconds seconds\"\n')
+      file_out.write(line)
     else:
       file_out.write(line)
       
 file_in.close()
 file_out.close()
 
-file_in   = open(workspace+'/_x/link/vivado/vpl/.local/hw_platform/tcl_hooks/impl.xdc', 'r')
-file_out  = open(workspace+'/_x/link/vivado/vpl/.local/hw_platform/tcl_hooks/.impl.xdc', 'w')
+try:
+  file_in   = open(impl_dir+'/../../../.local/hw_platform/tcl_hooks/impl.xdc', 'r')
+  file_out  = open(impl_dir+'/../../../.local/hw_platform/tcl_hooks/.impl.xdc', 'w')
+  
+  for line in file_in:
+    if (line.replace('SLR', '') != line):
+      file_out.write('# ' + line)
+    else:
+      file_out.write(line)
+  
+  file_in.close()
+  file_out.close()
+  os.system('mv '+impl_dir+'/../../../.local/hw_platform/tcl_hooks/.impl.xdc ' + impl_dir+'/../../../.local/hw_platform/tcl_hooks/impl.xdc')
+   
+  file_in   = open(impl_dir+'/../../../.local/hw_platform/tcl_hooks/preopt.tcl', 'r')
+  file_out  = open(impl_dir+'/../../../.local/hw_platform/tcl_hooks/.preopt.tcl', 'w')
+  
+  for line in file_in:
+    if (line.replace('SLR', '') != line):
+      file_out.write('# ' + line)
+    else:
+      file_out.write(line)
+  
+  file_in.close()
+  file_out.close()
+  os.system('mv '+ impl_dir+'/../../../.local/hw_platform/tcl_hooks/.preopt.tcl ' + impl_dir+'/../../../.local/hw_platform/tcl_hooks/preopt.tcl')
 
-for line in file_in:
-  if (line.replace('SLR', '') != line):
-    file_out.write('# ' + line)
-  else:
-    file_out.write(line)
-
-file_in.close()
-file_out.close()
-os.system('mv '+workspace+'/_x/link/vivado/vpl/.local/hw_platform/tcl_hooks/.impl.xdc ' + workspace+'/_x/link/vivado/vpl/.local/hw_platform/tcl_hooks/impl.xdc')
- 
-file_in   = open(workspace+'/_x/link/vivado/vpl/.local/hw_platform/tcl_hooks/preopt.tcl', 'r')
-file_out  = open(workspace+'/_x/link/vivado/vpl/.local/hw_platform/tcl_hooks/.preopt.tcl', 'w')
-
-for line in file_in:
-  if (line.replace('SLR', '') != line):
-    file_out.write('# ' + line)
-  else:
-    file_out.write(line)
-
-file_in.close()
-file_out.close()
-os.system('mv '+ workspace+'/_x/link/vivado/vpl/.local/hw_platform/tcl_hooks/.preopt.tcl ' + workspace+'/_x/link/vivado/vpl/.local/hw_platform/tcl_hooks/preopt.tcl')
+except:
+  print("cannot modify")
  
 
 

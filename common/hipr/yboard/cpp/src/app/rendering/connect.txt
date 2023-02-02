@@ -1,0 +1,7 @@
+read_in	projection 128
+rasterization1	rasterization2 32
+DMA	read_in 512
+zculling	coloringFB 32
+coloringFB	DMA 512
+rasterization2	zculling 32
+projection	rasterization1 64

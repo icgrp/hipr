@@ -42,8 +42,7 @@ class runtime(gen_basic):
         tmp_list.append('./load.exe '+op+'.xclbin')
 
     self.shell.re_mkdir(self.bit_dir+'/sd_card')
-    self.shell.cp_file(self.ydma_dir+'/ydma/'+self.prflow_params['board']+'/xrt.ini', self.bit_dir)
-    self.shell.cp_file(self.ydma_dir+'/ydma/'+self.prflow_params['board']+'/load.exe', self.bit_dir+'/sd_card')
+    self.shell.cp_file('input_src/'+self.prflow_params['benchmark_name']+'/'+self.prflow_params['board']+'/xrt.ini', self.bit_dir)
     self.shell.cp_file(self.overlay_dir+'/dynamic_region.xclbin', self.bit_dir+'/sd_card')
     self.shell.cp_file(self.overlay_dir+'/dynamic_region.xclbin', self.bit_dir)
     self.shell.write_lines(self.bit_dir+ '/sd_card/run_app.sh', tmp_list, True)
@@ -83,6 +82,13 @@ class runtime(gen_basic):
     self.shell.replace_lines(self.bit_dir+'/'+self.prflow_params['benchmark_name']+'/host/gen_runtime.sh', tmp_dict)
     os.system('chmod +x '+ self.bit_dir+'/'+self.prflow_params['benchmark_name']+'/host/gen_runtime.sh')
 
+  def return_run_sh_list_local(self):
+    cmd_str  = 'cd '+self.prflow_params['benchmark_name'] +'/' + self.prflow_params['board'] + '\n'
+    cmd_str += './build.sh \n'
+    cmd_str += 'cp ./app.exe ../../sd_card \n'
+    cmd_str += 'cp ./app.exe ../../ \n'
+    return(self.return_sh_list_local(cmd_str))
+
 
   def run(self, operators):
     # mk work directory
@@ -100,5 +106,10 @@ class runtime(gen_basic):
 
     # generate the run_app.sh for data center card
     self.gen_run_app_sh(operators)
+
+    # generate the main and run shell to generate the host driver app.exe
+    self.shell.write_lines(self.bit_dir+ '/run.sh', self.return_run_sh_list_local(), True)
+    self.shell.write_lines(self.bit_dir+ '/main.sh', self.shell.return_main_sh_list('./run.sh', self.prflow_params['back_end']), True)
+
 
 

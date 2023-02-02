@@ -1,0 +1,7 @@
+name is_placed x y w h
+coloringFB 1 12 0 24 1
+projection 1 7 0 4 1
+rasterization1 1 8 1 4 1
+rasterization2 1 0 1 6 1
+read_in 1 2 0 4 1
+zculling 1 22 1 14 1

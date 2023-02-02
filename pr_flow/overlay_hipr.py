@@ -49,11 +49,17 @@ class overlay(gen_basic):
     connection_list=self.dataflow.return_operator_connect_list(operator_arg_dict, operator_var_dict, operator_width_dict)
     self.update_connect_for_hipr(connection_list)
 
-    # generate Verilog netlist for the dataflow graph
-    mono_v_list = self.verilog.return_operator_inst_v_list(operator_arg_dict, connection_list, operator_var_dict, operator_width_dict)
+    if self.prflow_params['board'].startswith('yboard'):
+      # generate Verilog netlist for the dataflow graph
+      mono_v_list = self.verilog.return_dw_operator_inst_v_list(operator_arg_dict, connection_list, operator_var_dict, operator_width_dict, 'data_proc1_bb')
+      # write the Verilog netlist to hipr directory
+      self.shell.write_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/src4level2/data_proc1_bb/data_proc1_bb.v', mono_v_list)
+    else:
+      # generate Verilog netlist for the dataflow graph
+      mono_v_list = self.verilog.return_dw_operator_inst_v_list(operator_arg_dict, connection_list, operator_var_dict, operator_width_dict, 'mono')
+      # write the Verilog netlist to hipr directory
+      self.shell.write_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/src4level2/increment_bb/mono.v', mono_v_list)
 
-    # write the Verilog netlist to hipr directory
-    self.shell.write_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/src4level2/ydma_bb/mono.v', mono_v_list)
 
     # Utilize hls class to prepare the high-level-synthesis work directory
     hls_inst = hls(self.prflow_params)
@@ -63,11 +69,13 @@ class overlay(gen_basic):
       target_exist, target = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+operator+'.h', 'map_target') 
       # prepare the hls workspace
 
-      hls_inst.run(operator, self.overlay_dir+'/place_holder', '../../..', ['syn_'+operator+'.tcl', 'syn_'+operator+'_dummy.tcl'], isOverlay=True)
+      hls_inst.run(operator, self.overlay_dir+'/place_holder', '../../..', ['syn_'+operator+'_dummy.tcl&', 'syn_'+operator+'.tcl'], isOverlay=True)
       # if the operator is hipr type, use dummy as dcp for initial overlay P&R
       self.shell.cp_file('./common/verilog_src/stream_shell.v',  self.overlay_dir+'/place_holder')
-      self.shell.write_lines(self.overlay_dir+'/place_holder/syn_'+operator+'.tcl',       self.tcl.return_syn_page_tcl_list(operator,  [operator+'_top.v', 'stream_shell.v'], top_name=operator+'_top', hls_src='./'+operator+'_prj/'+operator+'/syn/verilog',   dcp_name=operator+'_netlist_false.dcp', rpt_name='utilization_'+operator+'.rpt'))
-      self.shell.write_lines(self.overlay_dir+'/place_holder/syn_'+operator+'_dummy.tcl', self.tcl.return_syn_page_tcl_list(operator,                                     [], top_name=operator       , hls_src='./'+operator+'_prj/'+operator+'/verilog_dummy', dcp_name=operator+'_netlist.dcp', rpt_name='utilization.rpt'))
+      self.shell.cp_file('./common/verilog_src/rs_dff.v',        self.overlay_dir+'/place_holder')
+      self.shell.cp_file('./common/verilog_src/rs_fifo.v',       self.overlay_dir+'/place_holder')
+      self.shell.write_lines(self.overlay_dir+'/place_holder/syn_'+operator+'.tcl',       self.tcl.return_syn_page_tcl_list(operator,  [operator+'_top.v', 'stream_shell.v', 'rs_dff.v', 'rs_fifo.v'], top_name=operator+'_top', hls_src='./'+operator+'_prj/'+operator+'/syn/verilog',   dcp_name=operator+'_netlist_false.dcp', rpt_name='utilization_'+operator+'.rpt'))
+      self.shell.write_lines(self.overlay_dir+'/place_holder/syn_'+operator+'_dummy.tcl', self.tcl.return_syn_page_tcl_list(operator,                                                              [], top_name=operator       , hls_src='./'+operator+'_prj/'+operator+'/verilog_dummy', dcp_name=operator+'_netlist.dcp', rpt_name='utilization.rpt'))
       operator_arg_dict, operator_width_dict = self.dataflow.return_operator_io_argument_dict(operator)
       in_width_list, out_width_list = self.dataflow.return_io_width(operator_width_dict[operator], operator_arg_dict[operator])
       input_num  = len(in_width_list) 
@@ -89,7 +97,10 @@ class overlay(gen_basic):
 
 
       # write the dummy netlist with only ports definitions to the hipr workspace
-      self.shell.write_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/src4level2/ydma_bb/'+operator+'.v', self.verilog.return_place_holder_v_list(operator, in_width_list, out_width_list, is_dummy=True)) 
+      if self.prflow_params['board'].startswith('yboard'):
+        self.shell.write_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/src4level2/data_proc1_bb/'+operator+'.v', self.verilog.return_place_holder_v_list(operator, in_width_list, out_width_list, is_dummy=True)) 
+      else:
+        self.shell.write_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/src4level2/increment_bb/'+operator+'.v', self.verilog.return_place_holder_v_list(operator, in_width_list, out_width_list, is_dummy=True)) 
 
     str_list = [\
        'operators='+operators, \
@@ -105,89 +116,113 @@ class overlay(gen_basic):
     self.shell.write_lines(self.overlay_dir+'/place_holder/Makefile', str_list)
 
   # run.sh will be used for generating the overlay.dcp 
-  def return_run_sh_list_local(self, operators):
+  def return_run_hipr_sh_list_local(self, operators):
     lines_list = []
     lines_list.append('#!/bin/bash -e')
     lines_list.append('#place_holder anchor')
-    lines_list.append('cd place_holder')
-    lines_list.append('make -j$(nproc)')
-    lines_list.append('cd -')
-
     # launch hls for each operator
-    print(operators) 
     # generate the 2nd-level DFX regions 
     if self.prflow_params['overlay_type'] == 'hipr': # generate abstract shell dcps for hipr overlay 
       lines_list.append('cd '+self.prflow_params['board']+'_dfx_hipr')
     else: # generate abstract shell dcps for psnoc overlay
       lines_list.append('cd '+self.prflow_params['board']+'_dfx_manual')
     lines_list.append('source '+self.prflow_params['Xilinx_dir'])
-    lines_list.append('make -j3')
+    lines_list.append('make -j$(nproc)')
+    # lines_list.append('make')
     lines_list.append('cd -')
+    return lines_list
+
+
+  # run.sh will be used for generating the overlay.dcp 
+  def return_run_xclbin_sh_list_local(self, operators):
+    lines_list = []
+    lines_list.append('#!/bin/bash -e')
+    lines_list.append('#place_holder anchor')
+
+    lines_list.append('source '+self.prflow_params['Xilinx_dir'])
     
     # copy the dcps and xclbins from overlay workspace
-    lines_list.append('cp ../F000_ydma_'+self.prflow_params['freq']+'/ydma/'+self.prflow_params['board']+'/_x/link/int/ydma.xml ./dynamic_region.xml')
-    lines_list.append('cp ../F000_ydma_'+self.prflow_params['freq']+'/ydma/'+self.prflow_params['board']+'/_x/link/vivado/vpl/prj/prj.runs/impl_1/dynamic_region.bit ./')
-    lines_list.append('./gen_xclbin_'+self.prflow_params['board']+'.sh dynamic_region.bit dynamic_region.xml dynamic_region.xclbin ../F000_ydma_'+self.prflow_params['freq'])
+    lines_list.append('cp ../F000_increment_'+self.prflow_params['freq']+'/increment/'+self.prflow_params['board']+'/_x.hw.'+self.prflow_params['PLATFORM']+'/link/int/krnl_incr.link.xml ./dynamic_region.xml')
+    lines_list.append('cp ../F000_increment_'+self.prflow_params['freq']+'/increment/'+self.prflow_params['board']+'/_x.hw.'+self.prflow_params['PLATFORM']+'/link/vivado/vpl/prj/prj.runs/impl_1/dynamic_region_'+self.prflow_params['benchmark_name']+'.bit ./dynamic_region.bit')
+    lines_list.append('./gen_xclbin_'+self.prflow_params['board']+'.sh dynamic_region.bit dynamic_region.xml dynamic_region.xclbin ../F000_increment_'+self.prflow_params['freq']+' '+self.prflow_params['freq'])
     return lines_list
 
  
   def create_shell_file(self, operators):
     # copy the shell script to generate xclbin
     self.shell.cp_file('./common/script_src/gen_xclbin_'+self.prflow_params['board']+'.sh ', self.overlay_dir)
-
     # generate the shell script to generate the overlay
-    self.shell.write_lines(self.overlay_dir+'/run.sh', self.return_run_sh_list_local(operators), True)
+    out_list = self.return_run_hipr_sh_list_local(operators)
+    out_list1 = self.shell.return_main_sh_list(\
+                                              './run_xclbin.sh', \
+                                              self.prflow_params['back_end'], \
+                                              'touch_'+self.prflow_params['benchmark_name']+'_'+self.prflow_params['freq'],\
+                                              'overlay', \
+                                              self.prflow_params['grid'],  \
+                                              self.prflow_params['email'], \
+                                              self.prflow_params['mem'],  \
+                                              self.prflow_params['node'])
+    out_list.append(out_list1[1])
+    self.shell.write_lines(self.overlay_dir+'/run_hipr.sh', out_list, True)
+    self.shell.write_lines(self.overlay_dir+'/run_xclbin.sh', self.return_run_xclbin_sh_list_local(operators), True)
     
     # generate the shell script to call run.sh depends on the scheduler.
     # scheduler: slurm, qsub, local 
-    self.shell.write_lines(self.overlay_dir+'/main.sh', self.shell.return_main_sh_list(\
-                                                       './run.sh', \
-                                                       self.prflow_params['back_end'], \
-                                                       'NONE',\
-                                                       'overlay', \
-                                                       self.prflow_params['grid'],  \
-                                                       self.prflow_params['email'], \
-                                                       self.prflow_params['mem'],  \
-                                                       self.prflow_params['maxThreads']), True)
+    out_list  = self.shell.return_main_sh_list('./run_hipr.sh', \
+                                              self.prflow_params['back_end'], \
+                                              'NONE',\
+                                              'hipr_Make', \
+                                              self.prflow_params['grid'],  \
+                                              self.prflow_params['email'], \
+                                              self.prflow_params['mem'],  \
+                                              self.prflow_params['node'])
+    self.shell.write_lines(self.overlay_dir+'/main.sh', out_list, True) 
  
   def update_cad_path(self, operators, hipr_pages_list):
-    # replace fifo_512X1024 with mono instance
-    subs_str='\n'
-    subs_str+='mono mono_inst(\n'
-    subs_str+='  .ap_clk(ap_clk),\n'
-    subs_str+='  .ap_rst_n(ap_rst_n),\n'
-    subs_str+='  .Input_1_V_TDATA(Loop_VITIS_LOOP_35_3_proc3_U0_v2_buffer_V_din),\n'
-    subs_str+='  .Input_1_V_TVALID(Loop_VITIS_LOOP_35_3_proc3_U0_v2_buffer_V_write),\n'
-    subs_str+='  .Input_1_V_TREADY(v2_buffer_V_full_n),\n'
-    subs_str+='  .Output_1_V_TDATA(v2_buffer_V_dout),\n'
-    subs_str+='  .Output_1_V_TVALID(v2_buffer_V_empty_n),\n'
-    subs_str+='  .Output_1_V_TREADY(Loop_VITIS_LOOP_36_4_proc4_U0_v2_buffer_V_read),\n'
-    subs_str+='  .ap_start(mono_start)\n'
-    subs_str+=');\n'
-    self.shell.replace_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/src4level2/ydma_bb/ydma.v', {'ydma_fifo_w512_d1024_A': subs_str})
+    # update the gurobi app dir 
+    modify_dict = {'GUROBI_DIR=': 'GUROBI_DIR='+self.prflow_params['gurobi_dir'],
+                   'board='     : 'board='+self.prflow_params['board']}
+    self.shell.replace_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/cpp/run.sh', modify_dict)
+    os.system('chmod +x '+self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/cpp/run.sh')
 
     # update the second-level definition tcl scripts 
-    str_line =  'pr_subdivide -cell '+self.prflow_params['inst_name'].replace('/ydma_1', '') +' -subcells {'
-    for operator in hipr_pages_list: str_line += self.prflow_params['inst_name'] + '/mono_inst/'+operator+'_inst '
-    str_line += '} ./checkpoint/pfm_dynamic_new_bb.dcp'
+    
+    if self.prflow_params['board'].startswith('yboard'):
+      str_line =  'pr_subdivide -cell '+self.prflow_params['inst_name'] +'/mono_inst/data_proc1_inst -subcells {'
+      for operator in hipr_pages_list: str_line += self.prflow_params['inst_name'] + '/mono_inst/data_proc1_inst/'+operator+'_inst '
+      str_line += '} ./checkpoint/data_proc1_bb.dcp'
+    else:
+      str_line =  'pr_subdivide -cell '+self.prflow_params['inst_name'].replace('/increment_1', '') +' -subcells {'
+      for operator in hipr_pages_list: str_line += self.prflow_params['inst_name'] + '/mono_inst/'+operator+'_inst '
+      str_line += '} ./checkpoint/pfm_dynamic_new_bb.dcp'
     self.shell.replace_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/tcl/sub_divided.tcl', {'pr_subdivide': str_line})
+ 
 
     # update the tcl script to place&route the overlay with dummy logic
     str_line = 'F001_dir=\'F001_overlay_'+self.prflow_params['benchmark_name']+'_'+self.prflow_params['freq']+'\''
     self.shell.replace_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/python/mk_overlay_tcl.py', {'F001_dir=': str_line})
+    self.shell.replace_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/python/mk_overlay_tcl.py', {'board=': 'board=\''+self.prflow_params['board']+'\''})
     str_line = ''
     for operator in operators.split():
-      str_line += '      file_out.write(\'set_property SCOPED_TO_CELLS {'+self.prflow_params['inst_name']+'/mono_inst/'+operator+'_inst }  [get_files ../../../../../../../../../../F001_overlay_'+self.prflow_params['benchmark_name']+'_'+self.prflow_params['freq']+'/place_holder/'+operator+'_netlist_false.dcp]\\n\')\n'
+      if self.prflow_params['board'].startswith('yboard'):
+        str_line += '      file_out.write(\'set_property SCOPED_TO_CELLS {'+self.prflow_params['inst_name']+'/mono_inst/data_proc1_inst/'+operator+'_inst }  [get_files ../../../../../../../../../../F001_overlay_'+self.prflow_params['benchmark_name']+'_'+self.prflow_params['freq']+'/place_holder/'+operator+'_netlist.dcp]\\n\')\n'
+      else:
+        str_line += '      file_out.write(\'set_property SCOPED_TO_CELLS {'+self.prflow_params['inst_name']+'/mono_inst/'+operator+'_inst }  [get_files ../../../../../../../../../../F001_overlay_'+self.prflow_params['benchmark_name']+'_'+self.prflow_params['freq']+'/place_holder/'+operator+'_netlist.dcp]\\n\')\n'
+        # str_line += '      file_out.write(\'set_property SCOPED_TO_CELLS {'+self.prflow_params['inst_name']+'/mono_inst/'+operator+'_inst }  [get_files ../../../../../../../../../../F001_overlay_'+self.prflow_params['benchmark_name']+'_'+self.prflow_params['freq']+'/place_holder/'+operator+'_netlist_false.dcp]\\n\')\n'
     self.shell.replace_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/python/mk_overlay_tcl.py', {'scope_anchor': str_line})
 
     str_line = ''
     for operator in operators.split():
-      str_line += '      file_out.write(\'add_files ../../../../../../../../../../F001_overlay_'+self.prflow_params['benchmark_name']+'_'+self.prflow_params['freq']+'/place_holder/'+operator+'_netlist_false.dcp\\n\')\n'
+      str_line += '      file_out.write(\'add_files ../../../../../../../../../../F001_overlay_'+self.prflow_params['benchmark_name']+'_'+self.prflow_params['freq']+'/place_holder/'+operator+'_netlist.dcp\\n\')\n'
+      # str_line += '      file_out.write(\'add_files ../../../../../../../../../../F001_overlay_'+self.prflow_params['benchmark_name']+'_'+self.prflow_params['freq']+'/place_holder/'+operator+'_netlist_false.dcp\\n\')\n'
     self.shell.replace_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/python/mk_overlay_tcl.py', {'page_dcp_anchor': str_line})
         
     str_line = '      file_out.write(\'link_design -mode default -part '+self.prflow_params['part']+' -reconfig_partitions {'
     for operator in hipr_pages_list:
-      str_line += self.prflow_params['inst_name']+'/mono_inst/'+operator+'_inst '
+      if self.prflow_params['board'].startswith('yboard'):
+        str_line += self.prflow_params['inst_name']+'/mono_inst/data_proc1_inst/'+operator+'_inst '
+      else:
+        str_line += self.prflow_params['inst_name']+'/mono_inst/'+operator+'_inst '
     str_line += '} -top '+self.prflow_params['top_name']+'\\n\')'
     self.shell.replace_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/python/mk_overlay_tcl.py', {'link_design': str_line})
 
@@ -204,14 +239,29 @@ class overlay(gen_basic):
       # construct the tcl script to generate the abstract shell 
       if operator in hipr_pages_list:
         str_hipr_line += operator+' '
-        self.shell.write_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/tcl/gen_abs_'+operator+'.tcl',\
-                               self.tcl.return_gen_abs_tcl_list('./checkpoint/overlay.dcp', self.prflow_params['inst_name']+'/mono_inst/'+operator+'_inst ', './checkpoint/'+operator+'.dcp'))
+        if self.prflow_params['board'].startswith('yboard'):
+          self.shell.write_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/tcl/gen_abs_'+operator+'.tcl',\
+                                 self.tcl.return_gen_abs_tcl_list('./checkpoint/overlay.dcp', self.prflow_params['inst_name']+'/mono_inst/data_proc1_inst/'+operator+'_inst ', './checkpoint/'+operator+'.dcp'))
+        else:
+          self.shell.write_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/tcl/gen_abs_'+operator+'.tcl',\
+                                 self.tcl.return_gen_abs_tcl_list('./checkpoint/overlay.dcp', self.prflow_params['inst_name']+'/mono_inst/'+operator+'_inst ', './checkpoint/'+operator+'.dcp'))
 
     # update the DFX region shell targets according to the benchmark in the Makefile
-    self.shell.replace_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/Makefile', {'workspace='          : 'workspace=../../F000_ydma_'+self.prflow_params['freq']+'/ydma/'+self.prflow_params['board']})
+    if self.prflow_params['board'].startswith('yboard'):
+      self.shell.replace_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/Makefile', {'workspace='          : 'workspace=../../F000_increment_'+self.prflow_params['freq']+'/increment/au50'})
+    else:
+      self.shell.replace_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/Makefile', {'workspace='          : 'workspace=../../F000_increment_'+self.prflow_params['freq']+'/increment/'+self.prflow_params['board']})
     self.shell.replace_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/Makefile', {'base_list='          : str_line+'\n'+str_hipr_line})
     self.shell.replace_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/Makefile', {'vitis_impl_tcl_name=': 'vitis_impl_tcl_name='+self.prflow_params['top_name']})
     self.shell.replace_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/Makefile', {'app='                : 'app='+self.prflow_params['benchmark_name']})
+    self.shell.replace_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/Makefile', {'freq=0M'               : 'freq='+self.prflow_params['freq']})
+    self.shell.replace_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/Makefile', {'board='              : 'board='+self.prflow_params['board']})
+    self.shell.replace_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/Makefile', {'back_end='           : 'back_end='+self.prflow_params['back_end']})
+
+    floorplan_exist, floorplan = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/host/top.h', 'floorplan') 
+    if floorplan_exist and floorplan=='fixed':
+      self.shell.replace_lines(self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr/Makefile', {'floorplan_fixed='   : 'floorplan_fixed=yes'})
+
 
   def update_resource_pragma_init(self, operators):
     init_str_list = ['op x y w h']
@@ -260,7 +310,11 @@ class overlay(gen_basic):
     self.shell.cp_dir('./common/verilog_src', self.overlay_dir+'/src')
 
     # copy the hipr work_dir to F001
-    self.shell.cp_dir('./common/hipr/'+self.prflow_params['board']+'_dfx_hipr', self.overlay_dir)
+    if self.prflow_params['board'].startswith('yboard'):
+      self.shell.cp_dir('./common/hipr/yboard', self.overlay_dir+'/'+self.prflow_params['board']+'_dfx_hipr')
+    else:
+      self.shell.cp_dir('./common/hipr/'+self.prflow_params['board']+'_dfx_hipr', self.overlay_dir)
+
 
     # update the cad tool path
     self.update_cad_path(operators, hipr_pages_list)

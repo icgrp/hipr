@@ -52,12 +52,12 @@ class syn(gen_basic):
   def prepare_HW(self, operator):
     # If the map target is Hardware, we need to prepare the HDL files and scripts to compile it.
     self.shell.mkdir(self.syn_dir+'/'+operator+'/src')
-    file_list = [ 'Config_Controls.v', 'write_queue.v',        'rise_detect.v',         'read_queue.v',     'converge_ctrl.v',
-                  'ExtractCtrl.v',     'Input_Port_Cluster.v', 'Input_Port.v',          'leaf_interface.v', 'Output_Port_Cluster.v',
-                  'Output_Port.v',     'read_b_in.v',          'ram0.v',                'single_ram.v',     'SynFIFO.v',
-                  'instr_config.v',    'picorv32_wrapper.v',   'picorv32.v',            'picorv_mem.v',     'xram2.v',
-                  'xram_triple.v',     'riscv2consumer.v',     'Stream_Flow_Control.v', 'write_b_in.v',     'write_b_out.v',
-                  'stream_shell.v']
+    file_list = [ 'Config_Controls.v', 'write_queue.v'       , 'rise_detect.v'        , 'read_queue.v'    , 'converge_ctrl.v'      ,
+                  'ExtractCtrl.v'    , 'Input_Port_Cluster.v', 'Input_Port.v'         , 'leaf_interface.v', 'Output_Port_Cluster.v',
+                  'Output_Port.v'    , 'read_b_in.v'         , 'ram0.v'               , 'single_ram.v'    , 'SynFIFO.v'            ,
+                  'instr_config.v'   , 'picorv32_wrapper.v'  , 'picorv32.v'           , 'picorv_mem.v'    , 'xram2.v'              ,
+                  'xram_triple.v'    , 'riscv2consumer.v'    , 'Stream_Flow_Control.v', 'write_b_in.v'    , 'write_b_out.v'        ,
+                  'stream_shell.v'   , 'rs_fifo.v'           , 'rs_dff.v'              ]
 
     # copy the necessary leaf interface verilog files for out-of-context compilation
     for name in file_list: self.shell.cp_file('common/verilog_src/'+name, self.syn_dir+'/'+operator+'/src/'+name)
@@ -93,7 +93,7 @@ class syn(gen_basic):
                            False)
     elif self.prflow_params['overlay_type'] == 'hipr':
       addr_width_dict = {}
-      for i in range(1, 8):  addr_width_dict['Output_'+str(i)] = self.prflow_params['bram_addr_bits']
+      for i in range(1, 18):  addr_width_dict['Output_'+str(i)] = self.prflow_params['bram_addr_bits']
       print (addr_width_dict)
       for arg in  operator_arg_dict[operator]:
         port_depth_exist, depth = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+operator+'.h', arg+'_depth')
@@ -132,8 +132,8 @@ class syn(gen_basic):
     self.shell.write_lines(self.syn_dir+'/'+operator+'/main.sh', self.shell.return_main_sh_list(
                                                                                                   './run.sh', 
                                                                                                   self.prflow_params['back_end'], 
-                                                                                                  'hls_'+operator, 
-                                                                                                  'syn_'+operator, 
+                                                                                                  'hls_'+operator+'_'+self.prflow_params['benchmark_name']+'_'+self.prflow_params['freq'], 
+                                                                                                  'syn_'+operator+'_'+self.prflow_params['benchmark_name']+'_'+self.prflow_params['freq'], 
                                                                                                   self.prflow_params['grid'], 
                                                                                                   'qsub@qsub.com',
                                                                                                   self.prflow_params['mem'], 

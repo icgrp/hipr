@@ -1,0 +1,2 @@
+stty: 'standard input': Inappropriate ioctl for device
+make: *** No rule to make target 'make'.  Stop.

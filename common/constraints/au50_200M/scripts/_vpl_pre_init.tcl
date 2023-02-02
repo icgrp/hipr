@@ -6,6 +6,7 @@ if { ![info exists _is_init_cmds] } {
   source ./scripts/debug_profile_hooks.tcl
   namespace import ocl_util::*
 
+set VPL_ERROR_LOGGED 707
   set _is_init_cmds true
 }
 

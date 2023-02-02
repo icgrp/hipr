@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <!--specifications for pr_flow tool-->
+  <spec name = "PLATFORM_REPO_PATHS" value=  "/scratch/unsafe/Xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1" />
+  <spec name = "ROOTFS"              value = "" />
+  <spec name = "sdk_dir"             value = "" />
+  <spec name = "PLATFORM"            value = "xilinx_u280_gen3x16_xdma_1_202211_1" />
+
+  <spec name = "board"               value = "au280" />
+  <spec name = "device"              value = "xcu280_0" /> 
+  <spec name = "part"                value = "xcu280-fsvh2892-2L-e" />
+  <spec name = "inst_name"           value = "level0_i/ulp/increment_1" />
+  <spec name = "top_name"            value = "level0_wrapper" />
+
+
+  <spec name = "p"                   value = "0.5" />
+  <spec name = "pks"                 value = "49" />
+  <spec name = "nl"                  value = "32" />
+  <spec name = "packet_bits"         value = "49" />
+  <spec name = "addr_bits"           value = "5" />
+ 
+  <spec name = "mono_freq_MHz"       value = "300" />
+
+
+
+</configuration>

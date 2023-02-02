@@ -7,10 +7,11 @@
   <!--specifications for pr_flow tool-->
    
   <!--spec name = "board"              value = "ultra96" -->
-  <spec name = "board"              value = "au50" />
+  <spec name = "board"              value = "au280" />
   <!--spec name = "board"              value = "zcu102" -->
-  <spec name = "Xilinx_dir"         value = "/scratch/unsafe/Xilinx/Vitis/2021.1/settings64.sh" />
+  <spec name = "Xilinx_dir"         value = "/scratch/unsafe/Xilinx/Vitis/2022.1/settings64.sh" />
   <spec name = "xrt_dir"            value = "/opt/xilinx/xrt/setup.sh" />
+  <spec name = "gurobi_dir"         value = "/scratch/volatile/gurobi951/linux64" />
 
 
   <spec name = "email"              value = "you_email@seas.upenn.edu" />
@@ -30,9 +31,8 @@
   <spec name = "node"               value = "1" />
   <!--spec name = "back_end"           value = "slurm" -->
   <spec name = "back_end"           value = "local" />
-  <!--spec name = "back_end"           value = "qsub" -->
   <!--spec name = "mem"                value = "7000mb" -->
-  <spec name = "mem"                value = "32G" />
+  <spec name = "mem"                value = "24G" />
   <spec name = "PR_mode"            value = "noquick" />
   <spec name = "port_bits"          value = "4" />
   <spec name = "bram_addr_bits"     value = "7" />

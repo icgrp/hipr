@@ -449,25 +449,25 @@ OPTRACE "Route Design: post hook" END { }
 OPTRACE "Route Design: write_checkpoint" START { CHECKPOINT }
   write_checkpoint -force level0_wrapper_routed.dcp
 OPTRACE "Route Design: write_checkpoint" END { }
-OPTRACE "route_design reports" START { REPORT }
-  create_report "impl_report_timing_summary_route_design_summary" "report_timing_summary -max_paths 10 -file hw_bb_locked_timing_summary_routed.rpt -pb hw_bb_locked_timing_summary_routed.pb -rpx hw_bb_locked_timing_summary_routed.rpx -warn_on_violation "
-OPTRACE "route_design reports" END { }
-OPTRACE "route_design misc" START { }
-  set_property HD.PLATFORM_WRAPPER 1 [get_cells level0_i/ulp]
+#OPTRACE "route_design reports" START { REPORT }
+#  create_report "impl_report_timing_summary_route_design_summary" "report_timing_summary -max_paths 10 -file hw_bb_locked_timing_summary_routed.rpt -pb hw_bb_locked_timing_summary_routed.pb -rpx hw_bb_locked_timing_summary_routed.rpx -warn_on_violation "
+#OPTRACE "route_design reports" END { }
+#OPTRACE "route_design misc" START { }
+  #set_property HD.PLATFORM_WRAPPER 1 [get_cells level0_i/ulp]
   close_msg_db -file route_design.pb
-OPTRACE "route_design write_checkpoint" START { CHECKPOINT }
-OPTRACE "route_design write_checkpoint" END { }
+  # OPTRACE "route_design write_checkpoint" START { CHECKPOINT }
+  # OPTRACE "route_design write_checkpoint" END { }
 } RESULT]
-if {$rc} {
-  write_checkpoint -force level0_wrapper_routed_error.dcp
-  step_failed route_design
-  return -code error $RESULT
-} else {
-  end_step route_design
-  unset ACTIVE_STEP 
-}
+  #if {$rc} {
+  #  write_checkpoint -force level0_wrapper_routed_error.dcp
+  #  step_failed route_design
+  #  return -code error $RESULT
+  #} else {
+  #  end_step route_design
+  #  unset ACTIVE_STEP 
+  #}
 
-OPTRACE "route_design misc" END { }
+# OPTRACE "route_design misc" END { }
 OPTRACE "Phase: Route Design" END { }
 set end_time [clock seconds]
 set total_seconds [expr $end_time - $start_time]

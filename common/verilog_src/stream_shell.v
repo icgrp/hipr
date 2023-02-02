@@ -22,7 +22,7 @@
 
 module stream_shell #(
     parameter PAYLOAD_BITS = 128,
-    parameter NUM_BRAM_ADDR_BITS = 7,
+    parameter NUM_BRAM_ADDR_BITS = 4,
     localparam FIFO_DEPTH = (2**NUM_BRAM_ADDR_BITS)
     )(
     input clk,
@@ -31,11 +31,11 @@ module stream_shell #(
     input val_in,
     output ready_upward,
     output reg [PAYLOAD_BITS-1:0] dout,
-    output reg val_out,
+    output val_out,
     input ready_downward
     );
 
-
+reg val_out_reg;
 wire empty;
 reg rd_en;
 wire full;
@@ -44,7 +44,7 @@ wire wr_en;
 wire [PAYLOAD_BITS-1:0] fifo_out;
 wire [PAYLOAD_BITS-1:0] fifo_in;
 
-
+assign val_out = val_out_reg && ready_downward;
 assign ready_upward = ~full;
 assign wr_en = val_in;
 assign fifo_in = din;
@@ -52,7 +52,7 @@ assign fifo_in = din;
 
 xpm_fifo_sync # (
 
-  .FIFO_MEMORY_TYPE          ("block"),           //string; "auto", "block", or "distributed";
+  .FIFO_MEMORY_TYPE          ("auto"),           //string; "auto", "block", or "distributed";
   .ECC_MODE                  ("no_ecc"),         //string; "no_ecc" or "en_ecc";
   //.RELATED_CLOCKS            (0),                //positive integer; 0 or 1
   .FIFO_WRITE_DEPTH          (FIFO_DEPTH),             //positive integer
@@ -149,24 +149,24 @@ end
 //val_out
 always@(posedge clk) begin
     if(reset) begin
-        val_out <= 0;
+        val_out_reg <= 0;
     end else begin
         case(state)
             NODATA: begin
                 if(empty) begin
-                    val_out <= 0;
+                    val_out_reg <= 0;
                 end else begin
-                    val_out <= 1;
+                    val_out_reg <= 1;
                 end
             end
             
             VALDATA: begin
                 if(!ready_downward) begin
-                    val_out <= 1;
+                    val_out_reg <= 1;
                 end else if (ready_downward && empty) begin
-                    val_out <= 0;
+                    val_out_reg <= 0;
                 end else if (ready_downward && (!empty)) begin
-                    val_out <= 1;
+                    val_out_reg <= 1;
                 end
             end
         endcase

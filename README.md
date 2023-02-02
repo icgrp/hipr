@@ -3,16 +3,16 @@ HiPR is a python-based framework on top of [Vitis 2021.1](https://www.xilinx.com
 We will use the **rendering512** on the local machine as an example. We will release **google cloud** flow and **other benchmarks** soon later.
 
 The pre-print manuscript of our paper can be found at https://ic.ese.upenn.edu/pdf/hipr_fpl2022.pdf.
-```
-@inproceedings{hipr_fpl2022,
-  title={{HiPR}: High-level Partial Reconfiguration for Fast Incremental {FPGA} Compilation},
-  author={Yuanlong Xiao and Aditya Hota and Dongjoon Park and Andre\' DeHon},
-  booktitle={2022 32nd International Conference on Field Programmable Logic and Applications (FPL)},
-  pages={1--9},
-  year={2022},
-  organization={IEEE}
-}
-```
+
+## 0 Different Pseudo Platforms
+
+Table 1: Overlay Resouce Distribution
+|  **Page Type** | **floorplan**              |  **LUT**   |**BRAM18**| **DSP**    | **URAM** |
+|:--------------:|:--------------------------:|:----------:|:--------:|:----------:|:--------:|
+|  ultra6_1      | ![](./images/ultra6_1.png) | 30,320     | 138      | 230        | 0        |
+|  ultra96_1     | ![](./images/ultra96_1.png)| 79,024     | 322      | 598        | 28       |
+|  zcu102_1      | ![](./images/zcu102_1.png) | 235,200    | 924      | 1,716      | 88       |
+|  zcu102_2      | ![](./images/zcu102_2.png) | 231,600    | 852      | 1,704      | 192      |
 
 ## 1 Tool Setup
 

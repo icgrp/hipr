@@ -38,7 +38,7 @@ class hls(gen_basic):
                                                                                                   './run_'+fun_name+'.sh', 
                                                                                                   self.prflow_params['back_end'], 
                                                                                                   'NONE', 
-                                                                                                  'hls_'+fun_name, 
+                                                                                                  'hls_'+fun_name+'_'+self.prflow_params['benchmark_name']+'_'+self.prflow_params['freq'], 
                                                                                                   self.prflow_params['grid'], 
                                                                                                   'qsub@qsub.com',
                                                                                                   self.prflow_params['mem'], 

@@ -1,0 +1,3 @@
+make TARGET=sw_emu PLATFORM=xilinx_u50_gen3x16_xdma_5_202210_1 all
+XCL_EMULATION_MODE=sw_emu ./streaming_free_running_k2k ./build_dir.sw_emu.xilinx_u50_gen3x16_xdma_5_202210_1/krnl_incr.xclbin
+make TARGET=hw PLATFORM=xilinx_zcu102_base_dfx_202210_1  EDGE_COMMON_SW=/scratch/unsafe/Xilinx/xilinx-zynqmp-common-v2022.1/sdk all

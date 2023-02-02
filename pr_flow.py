@@ -5,8 +5,7 @@ import os
 import subprocess
 import pr_flow.utils        as utils
 import pr_flow.gen_bft      as bft
-import pr_flow.overlay      as overlay
-import pr_flow.ydma         as ydma
+import pr_flow.increment    as increment
 import pr_flow.overlay_hipr as overlay_hipr
 import pr_flow.hls          as hls
 import pr_flow.syn          as syn
@@ -14,7 +13,6 @@ import pr_flow.impl         as impl
 import pr_flow.bit          as bit
 import pr_flow.xclbin       as xclbin
 import pr_flow.runtime      as runtime
-import pr_flow.monolithic   as monolithic
 import pr_flow.ip_repo      as ip_repo
 import pr_flow.mbft         as mbft
 import pr_flow.config       as config
@@ -32,7 +30,7 @@ if __name__ == '__main__':
   parser.add_argument('benchmark_name')
   parser.add_argument('-q',         '--run_qsub',        help="default: don't submit the qsub job to icgrid",                       action='store_true')
   parser.add_argument('-g',         '--gen_overlay',     help="default: don't compile the static region",                           action='store_true')
-  parser.add_argument('-y',         '--gen_ydma',        help="default: don't compile ydma kernel",                                 action='store_true')
+  parser.add_argument('-y',         '--gen_increment',        help="default: don't compile increment kernel",                                 action='store_true')
   parser.add_argument('-f',         '--freq',            help="default: freqence", type=str,                                        default='200MHz')
   parser.add_argument('-hls',       '--gen_hls',         help="default: don't compile the static region",                           action='store_true')
   parser.add_argument('-syn',       '--gen_syn',         help="default: don't perform out-of-context synthesis",                    action='store_true')
@@ -50,11 +48,11 @@ if __name__ == '__main__':
   args = parser.parse_args()
   benchmark_name = args.benchmark_name  
   input_file_name = './common/configure/configure.xml'
-  prflow_params                    = utils.load_prflow_params(input_file_name)
+  prflow_params                    = utils.load_prflow_params(input_file_name, benchmark_name)
   prflow_params['benchmark_name']  = benchmark_name
   prflow_params['run_qsub']        = args.run_qsub
   prflow_params['gen_overlay']     = args.gen_overlay
-  prflow_params['gen_ydma']        = args.gen_ydma
+  prflow_params['gen_increment']   = args.gen_increment
   prflow_params['gen_hls']         = args.gen_hls
   prflow_params['gen_syn']         = args.gen_syn
   prflow_params['gen_impl']        = args.gen_impl
@@ -71,12 +69,10 @@ if __name__ == '__main__':
   prflow_params['workspace']       = './workspace'
   operator = args.operator
  
-
- 
-  # When the input command is with '-y' arguments, the ydma will be regenerated!
-  if prflow_params['gen_ydma'] == True and prflow_params['overlay_type'] == 'hipr':
-    ydma_inst = ydma.ydma(prflow_params)
-    ydma_inst.run()
+  # When the input command is with '-y' arguments, the increment will be regenerated!
+  if prflow_params['gen_increment'] == True and prflow_params['overlay_type'] == 'hipr':
+    increment_inst = increment.increment(prflow_params)
+    increment_inst.run()
 
 
   # When the input command is with '-g' arguments, the workspace will be regenerated!

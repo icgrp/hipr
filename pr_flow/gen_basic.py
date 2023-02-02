@@ -29,7 +29,8 @@ class _shell:
 
   # return the qsub command according to the input parameters
   def return_qsub_command_str(self, shell_file='./qsub_run', hold_jid='NONE', name='NONE', q='70s', email='qsub@qsub.com', MEM='2G', node_num='1'):
-    return ('qsub -N '+name + ' -q ' + q + ' -hold_jid ' + hold_jid + ' -m abe -M ' + email + ' -l mem='+MEM + ' -pe onenode '+node_num + '  -cwd '+ shell_file)
+    # return ('qsub -N '+name + ' -q ' + q + ' -hold_jid ' + hold_jid + ' -m abe -M ' + email + ' -l mem='+MEM.replace('mb', 'M') + ' -pe onenode '+node_num + '  -cwd '+ shell_file)
+    return ('qsub -N '+name + ' -q ' + q + ' -hold_jid ' + hold_jid + ' -l mem='+MEM.replace('mb', 'M') + ' -pe onenode '+node_num + '  -cwd '+ shell_file)
 
   # return the slurm command according to the input parameters
   def return_slurm_command_str(self, shell_file='./qsub_run', hold_jid='NONE', name='NONE', q='70s', email='qsub@qsub.com', MEM='2G', node_num='1'):
@@ -141,6 +142,7 @@ class _shell:
   def return_run_hls_sh_list(self, vivado_dir, hls_tcl_file=None, syn_tcl_file_list=[], back_end='qsub'):
     out_file = []
     out_file.append('#!/bin/bash -e')
+    out_file.append('start=$(date +%s)')
     if (back_end == 'slurm'):
       # out_file.append('module load ' + vivado_dir)
       out_file.append('source ' + vivado_dir)
@@ -150,6 +152,9 @@ class _shell:
       out_file.append('source ' + vivado_dir)
       if(hls_tcl_file != None): out_file.append('vitis_hls -f ' + hls_tcl_file)
       for syn_tcl_file in syn_tcl_file_list: out_file.append('vivado -mode batch -source ' + syn_tcl_file)
+    out_file.append('end=$(date +%s)')
+    out_file.append('runtime=$((${end}-${start}))')
+    out_file.append('echo \"Runtime was $runtime\" > '+hls_tcl_file.replace('.tcl', '')+'.runtime')
     return out_file 
 
   def return_main_sh_list(self, run_file='run.sh', back_end='qsub', hold_jid='NONE', name='NONE', q='70s', email='qsub@qsub.com', MEM='2G', node_num='1'):
@@ -220,30 +225,121 @@ class _verilog:
     if(a>b): return a
     else: return b
 
-  def return_operator_inst_v_list(self, operator_arg_dict, connection_list, operator_var_dict, operator_width_dict):
-    out_list = ['module mono(',
+  def return_dw_operator_inst_v_list(self, operator_arg_dict, connection_list, operator_var_dict, operator_width_dict, top_name='mono'):
+    out_list = ['module '+top_name+'(',
                 '  input         ap_clk,',
                 '  input         ap_rst_n,',
-                '  input [511:0]  Input_1_V_TDATA,',
-                '  input         Input_1_V_TVALID,',
-                '  output        Input_1_V_TREADY,',
-                '  output [511:0] Output_1_V_TDATA,',
-                '  output        Output_1_V_TVALID,',
-                '  input         Output_1_V_TREADY,',
+                '  input [511:0]  Input_1_TDATA,',
+                '  input         Input_1_TVALID,',
+                '  output        Input_1_TREADY,',
+                '  output [511:0] Output_1_TDATA,',
+                '  output        Output_1_TVALID,',
+                '  input         Output_1_TREADY,',
+                '  output        ap_done,',
+                '  output        ap_idle,',
+                '  output        ap_ready,',
                 '  input         ap_start);']
-    out_list.append('wire [511:0] DMA_Input_1_V_TDATA;')
-    out_list.append('wire        DMA_Input_1_V_TVALID;')
-    out_list.append('wire        DMA_Input_1_V_TREADY;')
-    out_list.append('wire [511:0] DMA_Output_1_V_TDATA;')
-    out_list.append('wire        DMA_Output_1_V_TVALID;')
-    out_list.append('wire        DMA_Output_1_V_TREADY;')
+    out_list.append('wire [511:0] DMA_Input_1_TDATA;')
+    out_list.append('wire        DMA_Input_1_TVALID;')
+    out_list.append('wire        DMA_Input_1_TREADY;')
+    out_list.append('wire [511:0] DMA_Output_1_TDATA;')
+    out_list.append('wire        DMA_Output_1_TVALID;')
+    out_list.append('wire        DMA_Output_1_TREADY;')
  
     for op in operator_arg_dict:
       for idx, port in enumerate(operator_arg_dict[op]):
         width = int(operator_width_dict[op][idx].split('<')[1].split('>')[0])
-        out_list.append('wire ['+str(width-1)+':0] '+op+'_'+port+'_V_TDATA;')
-        out_list.append('wire        '+op+'_'+port+'_V_TVALID;')
-        out_list.append('wire        '+op+'_'+port+'_V_TREADY;')
+        out_list.append('wire ['+str(width-1)+':0] '+op+'_'+port+'_TDATA;')
+        out_list.append('wire        '+op+'_'+port+'_TVALID;')
+        out_list.append('wire        '+op+'_'+port+'_TREADY;')
+    for idx, connect_str in enumerate(connection_list):
+      connect_str_list = connect_str.split('->')      
+      if connect_str_list[1] == 'DMA.Input_1':
+        out_list.append('\nstream_shell #(')
+        out_list.append('  .PAYLOAD_BITS('+str(int(connect_str_list[2]))+'),')
+        out_list.append('  .NUM_BRAM_ADDR_BITS(7)')
+        out_list.append('  )stream_link_'+str(idx)+'(')
+        out_list.append('  .clk(ap_clk),')
+        out_list.append('  .din('+connect_str_list[0].replace('.','_')+'_TDATA),')
+        out_list.append('  .val_in('+connect_str_list[0].replace('.','_')+'_TVALID),')
+        out_list.append('  .ready_upward('+connect_str_list[0].replace('.','_')+'_TREADY),')
+        out_list.append('  .dout('+connect_str_list[1].replace('.','_')+'_TDATA),')
+        out_list.append('  .val_out('+connect_str_list[1].replace('.','_')+'_TVALID),')
+        out_list.append('  .ready_downward('+connect_str_list[1].replace('.','_')+'_TREADY),')
+        out_list.append('  .reset(~ap_rst_n));')
+      else:
+        out_list.append('\nrs_dff #(')
+        out_list.append('  .PAYLOAD_BITS('+str(int(connect_str_list[2]))+')')
+        out_list.append('  )pp_'+str(3*idx)+'(')
+        out_list.append('  .ap_clk(ap_clk),')
+        out_list.append('  .din('+connect_str_list[0].replace('.','_')+'_TDATA),')
+        out_list.append('  .dout('+connect_str_list[1].replace('.','_')+'_TDATA),')
+        out_list.append('  .ap_rst_n(ap_rst_n));')
+  
+        out_list.append('\nrs_dff #(')
+        out_list.append('  )pp_'+str(3*idx+1)+'(')
+        out_list.append('  .ap_clk(ap_clk),')
+        out_list.append('  .din('+connect_str_list[0].replace('.','_')+'_TVALID),')
+        out_list.append('  .dout('+connect_str_list[1].replace('.','_')+'_TVALID),')
+        out_list.append('  .ap_rst_n(ap_rst_n));')
+  
+        out_list.append('\nrs_dff #(')
+        out_list.append('  )pp_'+str(3*idx+2)+'(')
+        out_list.append('  .ap_clk(ap_clk),')
+        out_list.append('  .din('+connect_str_list[1].replace('.','_')+'_TREADY),')
+        out_list.append('  .dout('+connect_str_list[0].replace('.','_')+'_TREADY),')
+        out_list.append('  .ap_rst_n(ap_rst_n));')
+ 
+    for op in operator_arg_dict:
+      out_list.append('\n  '+op+' '+op+'_inst(')
+      out_list.append('    .ap_clk(ap_clk),')
+      out_list.append('    .ap_start(ap_start),')
+      out_list.append('    .ap_done(),')
+      out_list.append('    .ap_idle(),')
+      out_list.append('    .ap_ready(),')
+      for port in operator_arg_dict[op]:
+        out_list.append('    .'+port+'_TDATA(' +op+'_'+port+'_TDATA),')
+        out_list.append('    .'+port+'_TVALID('+op+'_'+port+'_TVALID),')
+        out_list.append('    .'+port+'_TREADY('+op+'_'+port+'_TREADY),')
+      out_list.append('    .ap_rst_n(ap_rst_n)')
+      out_list.append('  );')
+    out_list.append('assign Output_1_TDATA  = DMA_Input_1_TDATA;')
+    out_list.append('assign Output_1_TVALID = DMA_Input_1_TVALID;')
+    out_list.append('assign DMA_Input_1_TREADY = Output_1_TREADY;')
+    out_list.append('assign DMA_Output_1_TDATA  = Input_1_TDATA;')
+    out_list.append('assign DMA_Output_1_TVALID = Input_1_TVALID & Input_1_TREADY;')
+    out_list.append('assign Input_1_TREADY = DMA_Output_1_TREADY;')
+ 
+
+    out_list.append('endmodule')
+ 
+    return out_list
+
+ 
+  def return_operator_inst_v_list(self, operator_arg_dict, connection_list, operator_var_dict, operator_width_dict):
+    out_list = ['module mono(',
+                '  input         ap_clk,',
+                '  input         ap_rst_n,',
+                '  input [511:0]  Input_1_TDATA,',
+                '  input         Input_1_TVALID,',
+                '  output        Input_1_TREADY,',
+                '  output [511:0] Output_1_TDATA,',
+                '  output        Output_1_TVALID,',
+                '  input         Output_1_TREADY,',
+                '  input         ap_start);']
+    out_list.append('wire [511:0] DMA_Input_1_TDATA;')
+    out_list.append('wire        DMA_Input_1_TVALID;')
+    out_list.append('wire        DMA_Input_1_TREADY;')
+    out_list.append('wire [511:0] DMA_Output_1_TDATA;')
+    out_list.append('wire        DMA_Output_1_TVALID;')
+    out_list.append('wire        DMA_Output_1_TREADY;')
+ 
+    for op in operator_arg_dict:
+      for idx, port in enumerate(operator_arg_dict[op]):
+        width = int(operator_width_dict[op][idx].split('<')[1].split('>')[0])
+        out_list.append('wire ['+str(width-1)+':0] '+op+'_'+port+'_TDATA;')
+        out_list.append('wire        '+op+'_'+port+'_TVALID;')
+        out_list.append('wire        '+op+'_'+port+'_TREADY;')
     for idx, connect_str in enumerate(connection_list):
       connect_str_list = connect_str.split('->')      
       if connect_str_list[1] == 'DMA.Input_1': out_list.append('\nstream_shell #(')
@@ -252,12 +348,12 @@ class _verilog:
       out_list.append('  .NUM_BRAM_ADDR_BITS(7)')
       out_list.append('  )stream_link_'+str(idx)+'(')
       out_list.append('  .clk(ap_clk),')
-      out_list.append('  .din('+connect_str_list[0].replace('.','_')+'_V_TDATA),')
-      out_list.append('  .val_in('+connect_str_list[0].replace('.','_')+'_V_TVALID),')
-      out_list.append('  .ready_upward('+connect_str_list[0].replace('.','_')+'_V_TREADY),')
-      out_list.append('  .dout('+connect_str_list[1].replace('.','_')+'_V_TDATA),')
-      out_list.append('  .val_out('+connect_str_list[1].replace('.','_')+'_V_TVALID),')
-      out_list.append('  .ready_downward('+connect_str_list[1].replace('.','_')+'_V_TREADY),')
+      out_list.append('  .din('+connect_str_list[0].replace('.','_')+'_TDATA),')
+      out_list.append('  .val_in('+connect_str_list[0].replace('.','_')+'_TVALID),')
+      out_list.append('  .ready_upward('+connect_str_list[0].replace('.','_')+'_TREADY),')
+      out_list.append('  .dout('+connect_str_list[1].replace('.','_')+'_TDATA),')
+      out_list.append('  .val_out('+connect_str_list[1].replace('.','_')+'_TVALID),')
+      out_list.append('  .ready_downward('+connect_str_list[1].replace('.','_')+'_TREADY),')
       out_list.append('  .reset(~ap_rst_n));')
     for op in operator_arg_dict:
       out_list.append('\n  '+op+' '+op+'_inst(')
@@ -267,17 +363,17 @@ class _verilog:
       out_list.append('    .ap_idle(),')
       out_list.append('    .ap_ready(),')
       for port in operator_arg_dict[op]:
-        out_list.append('    .'+port+'_V_TDATA(' +op+'_'+port+'_V_TDATA),')
-        out_list.append('    .'+port+'_V_TVALID('+op+'_'+port+'_V_TVALID),')
-        out_list.append('    .'+port+'_V_TREADY('+op+'_'+port+'_V_TREADY),')
+        out_list.append('    .'+port+'_TDATA(' +op+'_'+port+'_TDATA),')
+        out_list.append('    .'+port+'_TVALID('+op+'_'+port+'_TVALID),')
+        out_list.append('    .'+port+'_TREADY('+op+'_'+port+'_TREADY),')
       out_list.append('    .ap_rst_n(ap_rst_n)')
       out_list.append('  );')
-    out_list.append('assign Output_1_V_TDATA  = DMA_Input_1_V_TDATA;')
-    out_list.append('assign Output_1_V_TVALID = DMA_Input_1_V_TVALID;')
-    out_list.append('assign DMA_Input_1_V_TREADY = Output_1_V_TREADY;')
-    out_list.append('assign DMA_Output_1_V_TDATA  = Input_1_V_TDATA;')
-    out_list.append('assign DMA_Output_1_V_TVALID = Input_1_V_TVALID;')
-    out_list.append('assign Input_1_V_TREADY = DMA_Output_1_V_TREADY;')
+    out_list.append('assign Output_1_TDATA  = DMA_Input_1_TDATA;')
+    out_list.append('assign Output_1_TVALID = DMA_Input_1_TVALID;')
+    out_list.append('assign DMA_Input_1_TREADY = Output_1_TREADY;')
+    out_list.append('assign DMA_Output_1_TDATA  = Input_1_TDATA;')
+    out_list.append('assign DMA_Output_1_TVALID = Input_1_TVALID;')
+    out_list.append('assign Input_1_TREADY = DMA_Output_1_TREADY;')
     out_list.append('endmodule')
  
     return out_list
@@ -294,13 +390,13 @@ class _verilog:
     lines_list.append('    output reg ap_idle,')
     lines_list.append('    output reg ap_ready,')
     for i in range(int(input_num)):
-      lines_list.append('    input wire ['+str(input_width_list[i]-1)+':0] Input_'+str(i+1)+'_V_TDATA,')
-      lines_list.append('    input wire Input_'+str(i+1)+'_V_TVALID,')
-      lines_list.append('    output reg Input_'+str(i+1)+'_V_TREADY,')
+      lines_list.append('    input wire ['+str(input_width_list[i]-1)+':0] Input_'+str(i+1)+'_TDATA,')
+      lines_list.append('    input wire Input_'+str(i+1)+'_TVALID,')
+      lines_list.append('    output reg Input_'+str(i+1)+'_TREADY,')
     for i in range(int(output_num)):
-      lines_list.append('    output reg ['+str(output_width_list[i]-1)+':0] Output_'+str(i+1)+'_V_TDATA,')
-      lines_list.append('    output reg Output_'+str(i+1)+'_V_TVALID,')
-      lines_list.append('    input wire Output_'+str(i+1)+'_V_TREADY,')
+      lines_list.append('    output reg ['+str(output_width_list[i]-1)+':0] Output_'+str(i+1)+'_TDATA,')
+      lines_list.append('    output reg Output_'+str(i+1)+'_TVALID,')
+      lines_list.append('    input wire Output_'+str(i+1)+'_TREADY,')
     lines_list.append('    input wire ap_rst_n')
     lines_list.append('    );')
     lines_list.append('')
@@ -313,19 +409,19 @@ class _verilog:
       lines_list.append('      ap_idle  <= 1\'b0;')
       lines_list.append('      ap_ready <= 1\'b0;')
       for i in range(int(input_num)):
-        lines_list.append('      Input_'+str(i+1)+'_V_TREADY  <= 0;')
+        lines_list.append('      Input_'+str(i+1)+'_TREADY  <= 0;')
       for i in range(int(output_num)):
-        lines_list.append('      Output_'+str(i+1)+'_V_TVALID <= 0;')
-        lines_list.append('      Output_'+str(i+1)+'_V_TDATA  <= 0;')
+        lines_list.append('      Output_'+str(i+1)+'_TVALID <= 0;')
+        lines_list.append('      Output_'+str(i+1)+'_TDATA  <= 0;')
       lines_list.append('    end else begin')
       lines_list.append('      ap_done  <= ap_start;')
       lines_list.append('      ap_idle  <= ap_start;')
       lines_list.append('      ap_ready <= ap_start;')
       for i in range(int(input_num)):
-        lines_list.append('      Input_'+str(i+1)+'_V_TREADY  <= Input_'+str(i+1)+'_V_TVALID & (|Input_'+str(i+1)+'_V_TDATA['+str(input_width_list[i]-1)+':0]);')
+        lines_list.append('      Input_'+str(i+1)+'_TREADY  <= Input_'+str(i+1)+'_TVALID & (|Input_'+str(i+1)+'_TDATA['+str(input_width_list[i]-1)+':0]);')
       for i in range(int(output_num)):
-        lines_list.append('      Output_'+str(i+1)+'_V_TVALID <= Output_'+str(i+1)+'_V_TREADY;')
-        lines_list.append('      Output_'+str(i+1)+'_V_TDATA  <= {('+str(output_width_list[i])+'){Output_'+str(i+1)+'_V_TREADY}} ;')
+        lines_list.append('      Output_'+str(i+1)+'_TVALID <= Output_'+str(i+1)+'_TREADY;')
+        lines_list.append('      Output_'+str(i+1)+'_TDATA  <= {('+str(output_width_list[i])+'){Output_'+str(i+1)+'_TREADY}} ;')
       lines_list.append('    end')
       lines_list.append('  end')
       lines_list.append('')
@@ -353,24 +449,50 @@ class _verilog:
     for idx, port in enumerate(operator_arg_list): 
       if port.replace('Input','') != port:
         WIDTH = operator_width_list[idx].replace('ap_uint<', '').replace('>', '').replace(' ', '')
-        lines_list.append('        input ['+WIDTH+'-1:0] '+port+'_V_TDATA,')
-        lines_list.append('        input  '+port+'_V_TVALID,')
-        lines_list.append('        output '+port+'_V_TREADY,')
+        lines_list.append('        input ['+WIDTH+'-1:0] '+port+'_TDATA,')
+        lines_list.append('        input  '+port+'_TVALID,')
+        lines_list.append('        output '+port+'_TREADY,')
       elif port.replace('Output','') != port:
         WIDTH = operator_width_list[idx].replace('ap_uint<', '').replace('>', '').replace(' ', '')
-        lines_list.append('        output ['+WIDTH+'-1:0] '+port+'_V_TDATA,')
-        lines_list.append('        output  '+port+'_V_TVALID,')
-        lines_list.append('        input  '+port+'_V_TREADY,')
+        lines_list.append('        output ['+WIDTH+'-1:0] '+port+'_TDATA,')
+        lines_list.append('        output  '+port+'_TVALID,')
+        lines_list.append('        input  '+port+'_TREADY,')
     lines_list.append('        input   ap_rst_n);\n\n')
 
     for idx, port in enumerate(operator_arg_list): 
       if port.replace('Output','') != port:
         WIDTH = operator_width_list[idx].replace('ap_uint<', '').replace('>', '').replace(' ', '')
-        lines_list.append('  wire ['+WIDTH+'-1:0] '+port+'_V_TDATA_tmp;')
-        lines_list.append('  wire '+port+'_V_TVALID_tmp;')
-        lines_list.append('  wire '+port+'_V_TREADY_tmp;')
+        lines_list.append('  wire ['+WIDTH+'-1:0] '+port+'_TDATA_tmp;')
+        lines_list.append('  wire '+port+'_TVALID_tmp;')
+        lines_list.append('  wire '+port+'_TREADY_tmp;')
+
+    for idx, port in enumerate(operator_arg_list): 
+      if port.replace('Input','') != port:
+        WIDTH = operator_width_list[idx].replace('ap_uint<', '').replace('>', '').replace(' ', '')
+        lines_list.append('  wire ['+WIDTH+'-1:0] '+port+'_TDATA_tmp;')
+        lines_list.append('  wire '+port+'_TVALID_tmp;')
+        lines_list.append('  wire '+port+'_TREADY_tmp;')
  
     lines_list.append('\n\n')
+
+    for idx, port in enumerate(operator_arg_list): 
+      if port.replace('Input','') != port:
+        WIDTH = operator_width_list[idx].replace('ap_uint<', '').replace('>', '').replace(' ', '')
+        lines_list.append('  rs_fifo #(')
+        lines_list.append('         .PAYLOAD_BITS('+WIDTH+'),')
+        lines_list.append('         .ADDR_WIDTH(4)')
+        lines_list.append('  )rs_fifo_'+port+'(')
+        lines_list.append('         .clk(ap_clk),')
+        lines_list.append('         .din('+port+'_TDATA),')
+        lines_list.append('         .push('+port+'_TVALID),')
+        lines_list.append('         .nfull('+port+'_TREADY),')
+        lines_list.append('         .dout('+port+'_TDATA_tmp),')
+        lines_list.append('         .nempty('+port+'_TVALID_tmp),')
+        lines_list.append('         .pop('+port+'_TREADY_tmp),')
+        lines_list.append('         .rst_n(ap_rst_n));\n\n')
+
+
+
 
     lines_list.append('  '+fun_name+' '+fun_name+'_inst(')
     lines_list.append('        .ap_clk(ap_clk),')
@@ -380,13 +502,13 @@ class _verilog:
     lines_list.append('        .ap_ready(ap_ready),')
     for idx, port in enumerate(operator_arg_list): 
       if port.replace('Input','') != port:
-        lines_list.append('        .'+port+'_V_TDATA('+port+'_V_TDATA),')
-        lines_list.append('        .'+port+'_V_TVALID('+port+'_V_TVALID),')
-        lines_list.append('        .'+port+'_V_TREADY('+port+'_V_TREADY),')
+        lines_list.append('        .'+port+'_TDATA('+port+'_TDATA_tmp),')
+        lines_list.append('        .'+port+'_TVALID('+port+'_TVALID_tmp),')
+        lines_list.append('        .'+port+'_TREADY('+port+'_TREADY_tmp),')
       elif port.replace('Output','') != port:
-        lines_list.append('        .'+port+'_V_TDATA('+port+'_V_TDATA_tmp),')
-        lines_list.append('        .'+port+'_V_TVALID('+port+'_V_TVALID_tmp),')
-        lines_list.append('        .'+port+'_V_TREADY('+port+'_V_TREADY_tmp),')
+        lines_list.append('        .'+port+'_TDATA('+port+'_TDATA_tmp),')
+        lines_list.append('        .'+port+'_TVALID('+port+'_TVALID_tmp),')
+        lines_list.append('        .'+port+'_TREADY('+port+'_TREADY_tmp),')
     lines_list.append('        .ap_rst_n(ap_rst_n));')
     lines_list.append('\n\n')
 
@@ -399,12 +521,12 @@ class _verilog:
         lines_list.append('         .NUM_BRAM_ADDR_BITS('+addr_width_dict[port]+')')
         lines_list.append('  )stream_link_'+port+'(')
         lines_list.append('         .clk(ap_clk),')
-        lines_list.append('         .din('+port+'_V_TDATA_tmp),')
-        lines_list.append('         .val_in('+port+'_V_TVALID_tmp),')
-        lines_list.append('         .ready_upward('+port+'_V_TREADY_tmp),')
-        lines_list.append('         .dout('+port+'_V_TDATA),')
-        lines_list.append('         .val_out('+port+'_V_TVALID),')
-        lines_list.append('         .ready_downward('+port+'_V_TREADY),')
+        lines_list.append('         .din('+port+'_TDATA_tmp),')
+        lines_list.append('         .val_in('+port+'_TVALID_tmp),')
+        lines_list.append('         .ready_upward('+port+'_TREADY_tmp),')
+        lines_list.append('         .dout('+port+'_TDATA),')
+        lines_list.append('         .val_out('+port+'_TVALID),')
+        lines_list.append('         .ready_downward('+port+'_TREADY),')
         lines_list.append('         .reset(~ap_rst_n));\n\n')
 
     lines_list.append('endmodule')
@@ -880,7 +1002,7 @@ class _tcl:
       'set logFileId [open ./runLog_'+fun_name+'.log "w"]',
       'set start_time [clock seconds]',
       'set_param general.maxThreads  8 ',
-      'synth_design -top '+top_name+' -part '+self.prflow_params['part']+' -mode out_of_context -max_uram 0'])
+      'synth_design -top '+top_name+' -part '+self.prflow_params['part']+' -mode out_of_context -max_uram 0 -max_bram_cascade_height 1\n#-cascade_dsp force'])
     lines_list.append('write_checkpoint -force '+dcp_name)
     lines_list.extend([
       'set end_time [clock seconds]',
@@ -897,6 +1019,7 @@ class _tcl:
 
   def return_hls_tcl_list(self, fun_name, path='../..'):
     lines_list = []
+    clock_cycle = 1000.0/float(self.prflow_params['freq'].replace('M', '').replace('m', ''))
     lines_list.append('set logFileId [open ./runLog' + fun_name + '.log "w"]')
     lines_list.append('set_param general.maxThreads ' + self.prflow_params['maxThreads'] + ' ')
     lines_list.append('set start_time [clock seconds]')                     
@@ -906,7 +1029,8 @@ class _tcl:
     lines_list.append('add_files '+path+'/input_src/' + self.prflow_params['benchmark_name'] + '/host/typedefs.h')
     lines_list.append('open_solution "' +fun_name +'"')                     
     lines_list.append('set_part {'+self.prflow_params['part']+'}')          
-    lines_list.append('create_clock -period '+self.prflow_params['clk_user']+' -name default')
+    lines_list.append('create_clock -period '+str(clock_cycle)+' -name default')
+    #print('create_clock -period '+str(clock_cycle)+' -name default')
     lines_list.append('#source "./Rendering_hls/colorFB/directives.tcl"')   
     lines_list.append('#csim_design')                                       
     lines_list.append('csynth_design')                                      
@@ -1166,7 +1290,7 @@ class gen_basic:
     self.dataflow      = _dataflow(prflow_params)
     self.prflow_params = prflow_params
     self.bft_dir       = self.prflow_params['workspace']+'/F000_bft_gen'
-    self.ydma_dir       = self.prflow_params['workspace']+'/F000_ydma_'+self.prflow_params['freq']
+    self.increment_dir = self.prflow_params['workspace']+'/F000_increment_'+self.prflow_params['freq']
     #self.overlay_dir  = self.prflow_params['workspace']+'/F001_overlay_' + self.prflow_params['nl'] + '_leaves'
     if self.prflow_params['overlay_type'] == 'hipr':
       self.overlay_dir = self.prflow_params['workspace']+'/F001_overlay_'+self.prflow_params['benchmark_name']+'_'+self.prflow_params['freq']

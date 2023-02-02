@@ -1,0 +1,7 @@
+op x y w h
+zculling 0 0 1 1
+read_in 0 0 1 1
+coloringFB 0 0 1 1
+rasterization1 0 0 1 1
+rasterization2 0 0 1 1
+projection 0 0 1 1

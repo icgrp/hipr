@@ -11,18 +11,18 @@ class xclbin(gen_basic):
   # create one directory for each page 
   def create_page(self, operator):
     self.shell.cp_file('common/script_src/gen_xclbin_'+self.prflow_params['board']+'.sh', self.bit_dir+'/run_'+operator+'.sh')
+    self.shell.cp_file(self.overlay_dir+'/dynamic_region.xml', self.bit_dir+'/'+operator+'.xml')
     tmp_dict = {'bitstream=' : 'bitstream='+operator+'.bit',
                 'xmlfile='   : 'xmlfile='+operator+'.xml',
                 'source'     : 'source '+self.prflow_params['Xilinx_dir'],
                 'xclbin='    : 'xclbin='+operator+'.xclbin',
-                'workspace=' : 'workspace=../F000_ydma_'+self.prflow_params['freq']}
+                'freq='      : 'freq='+self.prflow_params['freq'],
+                'workspace=' : 'workspace=../F000_increment_'+self.prflow_params['freq']}
     self.shell.replace_lines(self.bit_dir+'/run_'+operator+'.sh', tmp_dict)
-    tmp_dict = {'./ydma/' : '../F001_overlay_'+self.prflow_params['benchmark_name']+'_'+self.prflow_params['freq']+'/ydma/'}
-    self.shell.my_sed(self.bit_dir+'/run_'+operator+'.sh', tmp_dict)
+    # self.shell.my_sed(self.bit_dir+'/run_'+operator+'.sh', tmp_dict)
 
 
 
-    self.shell.cp_file('common/metadata/'+self.prflow_params['board']+'_'+self.prflow_params['freq']+'/ydma.xml', self.bit_dir+'/'+operator+'.xml')
     os.system('chmod +x '+self.bit_dir+'/run_'+operator+'.sh')
     self.shell.write_lines(self.bit_dir+'/main_'+operator+'.sh', self.shell.return_main_sh_list(
                                                                                                   './run_'+operator+'.sh', 

@@ -1,15 +1,78 @@
 
 freq=200M
 
-prj_name=rendering512
 
+#prj_name=datamover
+#prj_name=zcu102_1
+#prj_name=zcu102_2
+#prj_name=ultra96_1
+#prj_name=optical_flow_8
+#prj_name=optical_flow_1x
+#prj_name=optical_flow_2x
+#prj_name=optical_flow_4x
+#prj_name=optical_flow_5x
+#prj_name=optical_flow_6x
+#prj_name=optical_flow_2x_op
+#prj_name=spam_filter_1x
+#prj_name=rendering_dw
+#prj_name=rendering_1x
+#prj_name=rendering_2x
+#prj_name=rendering_12x
+#prj_name=rendering_16x
+#prj_name=rendering_32x
+#prj_name=digit_reg_1x_small
+#prj_name=digit_reg_1x
+#prj_name=digit_reg_2x
+#prj_name=digit_reg_12x
+#prj_name=digit_reg_dyn__1280_20_1
+#prj_name=face_detect_1x
+#prj_name=face_detect_12x
+#prj_name=face_detect_2x
+#prj_name=face_detect_4x
+#prj_name=digit_reg512
+#prj_name=digit_reg_dyn_50p
+#prj_name=digit_reg_dyn_yboard_80k
+#prj_name=digit_reg_dyn_yboard_164k
+# prj_name=digit_reg_dyn_yboard_265k
+#prj_name=digit_reg_dyn_yboard_339k
+#prj_name=ultra6_1
+
+
+# prj_name=digit_reg
+# prj_name=hibft
+# prj_name=optical_flow
+# prj_name=spam_filter_xysa_50p
+# prj_name=spam_filter_sqsa_50p
+prj_name=rendering
+# prj_name=rendering_fix
+# prj_name=bnn
+# prj_name=face_detect
+# prj_name=digit_reg_yboard_164k_200M
+# prj_name=face_detect_simple
+
+
+# prj_name=yboard_80k
+# prj_name=yboard_91k
+# prj_name=yboard_101k
+# prj_name=yboard_112k
+# prj_name=yboard_119k
+# prj_name=yboard_128k
+# prj_name=yboard_139k
+# prj_name=yboard_152k
+# prj_name=yboard_164k
+
+
+# prj_name=digit_reg_dyn_sqsa_70p
+# prj_name=hibft_51p
+# prj_name=hibft
+# prj_name=spam_filter_60p
 
 prefix=/opt
 platform_name=zcu102
 src=./common/verilog_src
 ws=workspace
-m=$(shell date)
-ws_ydma=$(ws)/F000_ydma_$(freq)
+
+ws_increment=$(ws)/F000_increment_$(freq)
 ws_sdk=$(ws)/F007_sdk_$(prj_name)
 ws_overlay=$(ws)/F001_overlay
 ws_hipr=$(ws)/F001_hipr
@@ -29,19 +92,21 @@ operators_impl_targets=$(foreach n, $(operators), $(ws_impl)/$(n)/page_routed.dc
 operators_bit_targets=$(foreach n, $(operators), $(ws_bit)/$(n).bit)
 operators_xclbin_targets=$(foreach n, $(operators), $(ws_bit)/$(n).xclbin)
 operators_runtime_target=$(ws_bit)/app.exe
-mono_target=$(ws_mono)/ydma.xclbin
+mono_target=$(ws_mono)/increment.xclbin
 operators_ip_targets=$(foreach n, $(operators), $(ws_mbft)/ip_repo/$(n)/prj/floorplan_static.xpr)
 mono_bft_target=$(ws_mbft)/prj/floorplan_static.runs/impl_1/floorplan_static_wrapper.bit
 download_target=$(ws_bit)/download.tcl 
 config_target=$(ws_mbft)/config.cpp 
 
 freq_start=100
-freq_end  =301
-freq_diff = 50
+freq_end  =401
+freq_diff = 10
 freq_sweep=$(shell seq $(freq_start) $(freq_diff) $(freq_end))
 
-ydma_targets=$(foreach n, $(freq_sweep), $(ws)/F000_ydma_$(n)M/__ydma_is_ready__)
-ydma=$(ws)/F000_ydma_$(freq)/__ydma_is_ready__
+increment_targets=$(foreach n, $(freq_sweep), $(ws)/F000_increment_$(n)M/__increment_is_ready__)
+increment=$(ws)/F000_increment_$(freq)/__increment_is_ready__
+
+m=$(shell date)
 
 
 overlay_type=hipr
@@ -58,10 +123,10 @@ $(mono_target):./input_src/$(prj_name)/host/top.cpp ./pr_flow/monolithic.py $(op
 	python3 pr_flow.py $(prj_name) -monolithic -op '$(basename $(notdir $(operators_bit_targets)))'
 	cd $(ws_mono) && ./main.sh
 	
-$(operators_runtime_target):./input_src/$(prj_name)/host/host.cpp $(operators_xclbin_targets) ./pr_flow/runtime.py
+$(operators_runtime_target):./input_src/$(prj_name)/host/host.cpp ./input_src/$(prj_name)/host/typedefs.h $(operators_xclbin_targets) ./pr_flow/runtime.py
 	python3 pr_flow.py $(prj_name) -runtime -op '$(basename $(notdir $(operators_bit_targets)))' -f $(freq)
 	cp $(operators_xclbin_targets) $(ws_bit)/sd_card
-	cd $(ws_bit)/$(prj_name)/host && ./gen_runtime.sh
+	cd $(ws_bit) && ./main.sh
 	
 $(operators_xclbin_targets):$(ws_bit)/%.xclbin:$(ws_bit)/%.bit
 	python3 pr_flow.py $(prj_name) -xclbin -op $(basename $(notdir $@)) -f $(freq)
@@ -143,21 +208,21 @@ cp_mono_prj: ./workspace/vitis/floorplan_static_wrapper.xsa
 
 overlay: $(ws_overlay)$(overlay_suffix)/__overlay_is_ready__
 
-$(ws_overlay)$(overlay_suffix)/__overlay_is_ready__: ./common/configure/configure.xml $(ydma)
+$(ws_overlay)$(overlay_suffix)/__overlay_is_ready__: $(increment)
 	python3 pr_flow.py $(prj_name) -g -f $(freq) -op '$(basename $(notdir $(operators_bit_targets)))'
 	cd ./workspace/F001_overlay$(overlay_suffix) && ./main.sh
 
 # 
-#ydma:$(ydma) 
-#$(ydma):./common/ydma/src/ydma.cpp 
+#increment:$(increment) 
+#$(increment):./common/increment/src/increment.cpp 
 #	python3 pr_flow.py  $(prj_name) -y -f $(freq)
-#	cd $(ws_ydma) && ./main.sh
+#	cd $(ws_increment) && ./main.sh
 
 
-install: $(ydma_targets) 
+install: $(increment_targets) 
 
-$(ydma_targets):$(ws)/F000_ydma_%/__ydma_is_ready__:./common/ydma/src/ydma.cpp
-	python3 pr_flow.py $(prj_name) -y -f $(subst /__ydma_is_ready__,,$(subst $(ws)/F000_ydma_,,$@)) && cd $(subst /__ydma_is_ready__,,$@) && ./main.sh
+$(increment_targets):$(ws)/F000_increment_%/__increment_is_ready__:./common/increment/src/increment.cpp
+	python3 pr_flow.py $(prj_name) -y -f $(subst /__increment_is_ready__,,$(subst $(ws)/F000_increment_,,$@)) && cd $(subst /__increment_is_ready__,,$@) && ./main.sh
 
 
 	
@@ -185,21 +250,26 @@ $(prefix)/xilinx/platforms/xilinx_$(platform_name)_base_dfx_202110_1:
 report: 
 	 python3 ./pr_flow.py $(prj_name) -op '$(basename $(notdir $(operators_bit_targets)))' -rpt -f $(freq)
 
-clear:
-	rm -rf ./workspace/*$(prj_name)*$(freq) 
-
 upload:
 	scp $(ws_bit)/sd_card/* root@yueboard.seas.upenn.edu:/mnt
-
-git:
-	git add .
-	git commit -m "$(m)"
-	git push origin au280_2022.1
-
 
 
 git_clean:
 	rm -rf ./pr_flow/*.pyc
+
+git:
+	git add .
+	git commit -m "$(m)"
+	git push origin au280
+
+clear:
+	rm -rf ./workspace/F002_hls_$(prj_name)_$(freq)
+	rm -rf ./workspace/F003_syn_$(prj_name)_$(freq)
+	rm -rf ./workspace/F004_impl_$(prj_name)_$(freq)
+	rm -rf ./workspace/F005_bits_$(prj_name)_$(freq)
+	rm -rf ./workspace/qsub/*
+
+
 
 clean:
 	rm -rf ./workspace/F001*
@@ -212,7 +282,7 @@ clean:
 	rm -rf ./workspace/qsub
 	rm -rf ./workspace/report
 
-clean_all:
+cleanall:
 	rm -rf ./workspace
 	rm -rf ./pr_flow/*.pyc
 

@@ -6,16 +6,17 @@ if { ![info exists _is_init_cmds] } {
   source ./scripts/debug_profile_hooks.tcl
   namespace import ocl_util::*
 
+set VPL_ERROR_LOGGED 707
   set _is_init_cmds true
 }
 
 
 
 # generate cookie file for messaging
-write_cookie_file_impl "ydma"
+write_cookie_file_impl "krnl_incr.link"
 
 # utilization reports
-report_utilization_impl true "ydma" "routed" "level0_i/ulp" $input_dir $vivado_output_dir
+report_utilization_impl true "mem_read2 mem_write1 increment mem_write3 mem_read1 mem_read3 mem_write2" "routed" "level0_i/ulp" $input_dir $vivado_output_dir
 
 # kernel service update
 update_kernel_info $steps_log $vpl_output_dir "level0_i/ulp"

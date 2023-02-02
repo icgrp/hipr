@@ -15,6 +15,7 @@ class impl(gen_basic):
     tmp_dict = {'set operator'                : 'set operator '+operator,
                 'set part'                    : 'set part '+self.prflow_params['part'],
                 'set benchmark'               : 'set benchmark '+self.prflow_params['benchmark_name'],
+                'link_design -mode'           : 'link_design -mode default -reconfig_partitions { '+self.prflow_params['inst_name']+'/mono_inst/'+str(operator)+'_inst } -part $part -top '+self.prflow_params['top_name'],
                 'set_property SCOPED_TO_CELLS': ''}
     tmp_dict['CELL_ANCHOR']     = 'set_property SCOPED_TO_CELLS { '+self.prflow_params['inst_name']+'/mono_inst/'+operator+'_inst } [get_files $page_dcp]'
     tmp_dict['set inst_name']   = 'set inst_name "'+self.prflow_params['inst_name']+'/mono_inst/'+operator+'_inst"'
@@ -22,6 +23,7 @@ class impl(gen_basic):
     tmp_dict['set context_dcp'] = 'set context_dcp "../../F001_overlay_'+self.prflow_params['benchmark_name']+'_'+self.prflow_params['freq']+'/'+self.prflow_params['board']+'_dfx_hipr/checkpoint/'+operator+'.dcp"'
 
     self.shell.cp_dir('./common/constraints/'+self.prflow_params['board']+'_'+self.prflow_params['freq']+'/*', self.pr_dir+'/'+operator)
+    print('./common/constraints/'+self.prflow_params['board']+'_'+self.prflow_params['freq']+'/*', self.pr_dir+'/'+operator)
     self.shell.mkdir(self.pr_dir+'/'+operator+'/output')
     os.system('touch '+self.pr_dir+'/'+operator+'/output/_user_impl_clk.xdc')
     self.shell.replace_lines(self.pr_dir+'/'+operator+'/impl_'+operator+'.tcl', tmp_dict)
@@ -29,8 +31,8 @@ class impl(gen_basic):
     self.shell.write_lines(self.pr_dir+'/'+operator+'/main.sh', self.shell.return_main_sh_list(
                                                                                                   './run.sh', 
                                                                                                   self.prflow_params['back_end'], 
-                                                                                                  'syn_'+operator, 
-                                                                                                  'impl_'+operator, 
+                                                                                                  'syn_'+operator+'_'+self.prflow_params['benchmark_name']+'_'+self.prflow_params['freq'], 
+                                                                                                  'impl_'+operator+'_'+self.prflow_params['benchmark_name']+'_'+self.prflow_params['freq'], 
                                                                                                   self.prflow_params['grid'], 
                                                                                                   'qsub@qsub.com',
                                                                                                   self.prflow_params['mem'], 

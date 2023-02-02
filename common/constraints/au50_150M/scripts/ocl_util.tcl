@@ -744,6 +744,7 @@ namespace eval ocl_util {
     set_property design_mode $design_mode [current_fileset]
 
     # Memory initialization isn't supported, disable BMM/MMI creation to speed up the flow
+    puts "INFO: \[OCL_UTIL\] set_property mem.enable_memory_map_generation 0 \[current_project\]"
     set_property mem.enable_memory_map_generation 0 [current_project]
 
     # bb_synth_dcp dcp should always be there for unified platforms of state "synth"
@@ -812,7 +813,6 @@ namespace eval ocl_util {
     # if AcceleratorBinaryContent is set to "dcp", abstract shell dcp should take precedence
     # necessary error check has already been done in frontend, we can only consider the valid usecase here
     if { $bb_locked_dcp ne "" || $uses_pr_shell_dcp} {
-      # if { [string equal $link_output_format "bitstream"] || [string equal $link_output_format "pdi"] } 
       if { [has_output_format $link_output_format "bitstream"] || [has_output_format $link_output_format "pdi"] } {
         set hw_platform_dcp $bb_locked_dcp
       } else {
@@ -841,8 +841,10 @@ namespace eval ocl_util {
       add_to_steps_log $steps_log "internal step: create_pr_configuration -name $pr_config_name -partitions \[list $ocl_inst_path:$reconfig_module\]" [fileName]:[lineNumber [info frame]]
       create_pr_configuration -name $pr_config_name -partitions [list $ocl_inst_path:$reconfig_module]
       # disable the generation of the cell level checkpoints for RMs during post bitstream 
+      puts "INFO: \[OCL_UTIL\] set_property AUTO_IMPORT 0 \[get_pr_configuration $pr_config_name\]"
       set_property AUTO_IMPORT 0 [get_pr_configuration $pr_config_name]
       # disable the generation of wrapper black box checkpoint during post bitstream
+      puts "INFO: \[OCL_UTIL\] set_property USE_BLACKBOX 0 \[get_pr_configuration $pr_config_name\]"
       set_property USE_BLACKBOX 0 [get_pr_configuration $pr_config_name]
 
     # TODO: SmartXplore (multiple impl runs)
@@ -887,7 +889,7 @@ namespace eval ocl_util {
   proc check_single_impl_run_status {hw_platform_info config_info clk_info} {
     set steps_log           [dict get $config_info steps_log] 
     set vivado_output_dir   [dict get $config_info vivado_output_dir] 
-    set strategies_impl     [dict get $config_info strategies_impl] 
+    # set strategies_impl     [dict get $config_info strategies_impl] 
     set wns_threshold       [dict get $clk_info worst_negative_slack]
 
     # note: this may return a useless run for usesPR platform, e.g. my_rm_impl_1
@@ -919,22 +921,19 @@ namespace eval ocl_util {
   # utility function called by impl step
   #   Description: log generated implementation report files, check the implementation
   #                run status
-  #                called by wait_on_all_runs_(), used only for multi-strategies usecase
+  #                used only for multi-strategies usecase
+  #                called by wait_on_all_runs_(), after all the impl runs are done
   #      
   #   Arguments:
   #      hw_platform_info
   #      config_info
   ################################################################################
   proc check_impl_run_status {hw_platform_info config_info clk_info} {
+    set link_output_format  [dict get $hw_platform_info link_output_format]
     set steps_log           [dict get $config_info steps_log] 
     set vivado_output_dir   [dict get $config_info vivado_output_dir] 
     set strategies_impl     [dict get $config_info strategies_impl] 
-    set wns_threshold       [dict get $clk_info worst_negative_slack]
-    set error_hold_vio      [dict get $clk_info error_on_hold_violation]
 
-    set ignore_hold_vio     [expr ! $error_hold_vio]
-
-    # SmartXplore (multiple impl runs)
     # note: this may return a useless run for usesPR platform, e.g. my_rm_impl_1
     # TODO
     set impl_runs [get_runs -filter {IS_IMPLEMENTATION == 1} ]
@@ -946,11 +945,13 @@ namespace eval ocl_util {
 
     # check impl run status
     set best_run ""
+    # TODO: this tcl proc is only called by wait_on_all_runs_ in multi-strategies
+    # no need to check again
     set enable_multi_strategies [expr {$strategies_impl ne ""}]
     if {$enable_multi_strategies} {
       # in SmartXplore, we need to find a qualified implementation run
       # in which all three WNS/WHS/TPWS numbers are >=0
-      report_wns_stats $impl_runs $wns_threshold $ignore_hold_vio $steps_log best_run
+      report_wns_stats $impl_runs $clk_info $steps_log $link_output_format best_run 
       if {$best_run eq ""} {
         add_to_steps_log $steps_log "internal step: problem finding a qualified implementation run" [fileName]:[lineNumber [info frame]]
         add_to_steps_log $steps_log "status: fail (timing failure)" [fileName]:[lineNumber [info frame]]
@@ -959,20 +960,7 @@ namespace eval ocl_util {
                                        under each implementation run directory for more information" 
       }
 
-    } else {
-      # TODO: remove the section below since this tcl proc is used for multi-strategies usecase only
-      # we are only interested in the default impl run - impl_1
-      set run_status [get_property STATUS [get_runs impl_1]]
-      if { [string match "*ERROR" $run_status] } {
-        set run_dir [get_property DIRECTORY [get_runs impl_1]]
-        add_to_steps_log $steps_log "internal step: problem implementing dynamic region, impl_1: $run_status" [fileName]:[lineNumber [info frame]]
-        add_to_steps_log $steps_log "status: fail ($run_status)" [fileName]:[lineNumber [info frame]]
-        add_to_steps_log $steps_log "log: $run_dir/runme.log" [fileName]:[lineNumber [info frame]]
-        error2file $vivado_output_dir "problem implementing dynamic region, impl_1: $run_status, please\
-                                       look at the run log file '$run_dir/runme.log' for more information" 
-      } 
-      set best_run "impl_1"
-    }
+    } 
 
     return $best_run
   }
@@ -1074,17 +1062,31 @@ namespace eval ocl_util {
       set static_cells [get_cells -hierarchical -filter $filter]
       set static_pblocks [get_pblocks -of_objects $static_cells]
       foreach pblock $static_pblocks {
-        # If this is a child block and the parent is in the list, skip it because
-        # the parent will report all the rectangles of children, possibly merging them.
-        set parent [get_property PARENT $pblock]
-        if {[lsearch -exact $static_pblocks $parent] >= 0} {
+        # Skip parent pblocks and instead just process the leaf pblocks. In CR-1098565,
+        # the filter code to get the pblocks returns a parent ("pblock_level" in this case)
+        # that includes things we want as well as the dynamic region. As a result, we end
+        # up with dynamic region rectangles which are incorrect. How do we skip the parents?
+        # There isn't a property to get children (although from children we can get parents),
+        # so we instead take advantage of -include_nested_pblocks. In the call below to
+        # get_pblocks, if there are no children, the list will be just the pblock itself.
+        if {[llength [get_pblocks $pblock -include_nested_pblocks]] > 1} {
           continue
         }
         # We presume that disparate pblocks won't have duplicate rectangles,
         # so just send the data that we have now.
         set rects [get_property RECTANGLE_TILES $pblock]
         foreach rect $rects {
-          if { [ catch { ::kernel_service::upsert_platform -static_rect $rect } results ] } {
+          # The Y coordinates for the rect appear to be inverted compared to the tile coordinates
+          # we get below using TILE_Y. Since the TILE_Y appears to match what we see in Vivado,
+          # we will use that as the standard and convert these rectangle Y coordinates to match.
+          # The list is supplied is supposedly { low_x low_y high_x high_y }, but when we invert
+          # the high and low Ys will switch, so our new y1 will be calculated based on high_y,
+          # and y2 will be calculated based on low_y.
+          set x1 [lindex $rect 0]
+          set x2 [lindex $rect 2]
+          set y1 [expr $num_rows - [lindex $rect 3]]
+          set y2 [expr $num_rows - [lindex $rect 1]]
+          if { [ catch { ::kernel_service::upsert_platform -static_rect [list $x1 $y1 $x2 $y2] } results ] } {
             puts "CRITICAL WARNING: Kernel service failed to update platform static information: $results"
           }
         }
@@ -1099,6 +1101,9 @@ namespace eval ocl_util {
     # a better way than the following.
     # First construct the filter.
     set filter "STATUS==PLACED"
+    # If we have path to the OCL region, use it to limit the filter to that.
+    # If we don't, we assume the entire chip is the dynamic region and we will
+    # just filter out the compute units a few lines below.
     if { $ocl_inst_path ne "" } {
       append filter " && NAME =~ $ocl_inst_path/*"
     }
@@ -1172,13 +1177,10 @@ namespace eval ocl_util {
   proc wait_on_first_run_local_ {impl_runs hw_platform_info config_info clk_info demoted_up} {
     upvar 1 $demoted_up demoted_runs
 
+    set link_output_format  [dict get $hw_platform_info link_output_format]
     set steps_log           [dict get $config_info steps_log] 
     set wait_on_all_runs    [dict get $config_info wait_on_all_impl_runs] 
     set vivado_output_dir   [dict get $config_info vivado_output_dir] 
-    set wns_threshold       [dict get $clk_info worst_negative_slack]
-    set error_hold_vio      [dict get $clk_info error_on_hold_violation]
-
-    set ignore_hold_vio     [expr ! $error_hold_vio]
 
     # new wait on run behavior - only wait on completion of the first qualified impl run
     set is_wait true
@@ -1195,7 +1197,7 @@ namespace eval ocl_util {
           foreach _run $completed_runs {
             # puts "dbg: found completed run $_run"
             # check if this run meets timing
-            if { [is_best_run $_run $wns_threshold $ignore_hold_vio] } {
+            if { [is_best_run $_run $clk_info $link_output_format] } {
               # puts "debug: found the best run $_run"
               set best_run $_run
               # puts "debug: wait_on_run $_run"
@@ -1250,7 +1252,7 @@ namespace eval ocl_util {
       set summary "Timing Closed Implementation Run: NONE" 
     }
 
-    # puts "\n$summary\n"
+    print_multi_strategies_timing_summary $impl_runs $clk_info $link_output_format
     # add an summary entry to steps.log
     add_to_steps_log $steps_log "Multi-strategy Flow: $summary" [fileName]:[lineNumber [info frame]]
 
@@ -1269,13 +1271,10 @@ namespace eval ocl_util {
   proc wait_on_first_run_lsf_ {impl_runs hw_platform_info config_info clk_info demoted_up} {
     upvar 1 $demoted_up demoted_runs
 
+    set link_output_format  [dict get $hw_platform_info link_output_format]
     set steps_log           [dict get $config_info steps_log] 
     set wait_on_all_runs    [dict get $config_info wait_on_all_impl_runs] 
     set vivado_output_dir   [dict get $config_info vivado_output_dir] 
-    set wns_threshold       [dict get $clk_info worst_negative_slack]
-    set error_hold_vio      [dict get $clk_info error_on_hold_violation]
-
-    set ignore_hold_vio     [expr ! $error_hold_vio]
 
      # new wait on run behavior - only wait on completion of the first qualified impl run
      set is_wait true
@@ -1285,10 +1284,10 @@ namespace eval ocl_util {
          set run_status [get_property STATUS $_run]
          # puts "debug: run $_run, status is $run_status"
          # note: for versal platform, the final run status is "write_device_image ..."
-         if {$run_status eq "write_bitstream Complete!" || $run_status eq "write_device_image Complete!"}  {
+         # if {$run_status eq "write_bitstream Complete!" || $run_status eq "write_device_image Complete!"}  {
            # puts "debug: found completed run $_run"
            # check if this run meets timing
-           if { [is_best_run $_run $wns_threshold $ignore_hold_vio] } {
+           if { [is_best_run $_run $clk_info $link_output_format] } {
              # puts "debug: found the best run $_run"
              set best_run $_run
              # puts "debug: wait_on_run $_run"
@@ -1308,7 +1307,7 @@ namespace eval ocl_util {
                ::vitis_log::status $run_cmd_id DEMOTED
              }
            }
-         }
+         # }
        }
 
        # TODO: move this to a seprate utility tcl proc
@@ -1365,7 +1364,7 @@ namespace eval ocl_util {
        set summary "Timing Closed Implementation Run: NONE" 
      }
 
-     # puts "\n$summary\n"
+     print_multi_strategies_timing_summary $impl_runs $clk_info $link_output_format
      # add an summary entry to steps.log
      add_to_steps_log $steps_log "Multi-strategy Flow: $summary" [fileName]:[lineNumber [info frame]]
 
@@ -1406,7 +1405,7 @@ namespace eval ocl_util {
       # multi-strategies
       if {$wait_on_all_runs} {
         # old wait on run behavior - wait on completion of all impl runs 
-        # puts "debug: wait_on_all_runs_"
+        puts "INFO: \[OCL_UTIL\] wait_on_all_runs_"
         set best_run [wait_on_all_runs_ $impl_runs $hw_platform_info $config_info $clk_info]
         foreach run $impl_runs {
           set run_cmd_id $ocl_util::run_ids($run)
@@ -1426,10 +1425,10 @@ namespace eval ocl_util {
         # but we can figure out by process of elimination.
         set demoted_runs {}
         if {$is_lsf || ![is_drcv] } {
-          # puts "debug: wait_on_first_run_lsf_"
+          puts "INFO: \[OCL_UTIL\] wait_on_first_run_lsf_"
           set best_run [wait_on_first_run_lsf_ $impl_runs $hw_platform_info $config_info $clk_info demoted_runs]
         } else {
-          # puts "debug: wait_on_first_run_local_"
+          puts "INFO: \[OCL_UTIL\] wait_on_first_run_local_"
           set best_run [wait_on_first_run_local_ $impl_runs $hw_platform_info $config_info $clk_info demoted_runs]
         }
         # We need to log the best_run and the ABANDONED runs.
@@ -1507,6 +1506,7 @@ namespace eval ocl_util {
     set steps_log           [dict get $config_info steps_log] 
     set gen_fixed_xsa_in_top_prj [dict get $config_info gen_fixed_xsa_in_top_prj] 
     set is_hw_export        [dict get $config_info is_hw_export]
+    set strategies_impl     [dict get $config_info strategies_impl]
 
     set run_name $best_run
     set run_dir [get_property DIRECTORY [get_runs $run_name]]
@@ -1683,6 +1683,23 @@ namespace eval ocl_util {
        catch {file copy -force $ltx_file $vpl_output_dir/$out_ltx_file}
     }
 
+    # copy logic_uuid.txt to vpl output dir
+    # this file is not always present, only generated for synth&flat platform
+    set logic_uuid_txt [glob -nocomplain "$run_dir/logic_uuid.txt"]
+    if {$logic_uuid_txt ne ""} {
+       catch {file copy -force $logic_uuid_txt $vpl_output_dir}
+    }
+
+    # copy uuid.fragment.csv to vpl output dir
+    # per Chen's request, only do this for multi-stategies
+    if {[llength $strategies_impl] > 0} {
+      # this file is not always present, only generated for synth&flat platform
+      set uuid_csv [glob -nocomplain "$run_dir/uuid.fragment.csv"]
+      if {$uuid_csv ne ""} {
+         catch {file copy -force $uuid_csv $vpl_output_dir}
+      }
+    }
+
     # generate fixed platform
     if {$gen_fixed_xsa_in_top_prj && $is_hw_export} {
       generate_fixed_hw_platform $hw_platform_info $config_info true
@@ -1729,14 +1746,23 @@ namespace eval ocl_util {
 
     set fixed_xsa            [dict get $config_info fixed_xsa]
     set vpl_output_dir       [dict get $config_info vpl_output_dir]
+    set vivado_output_dir    [dict get $config_info vivado_output_dir] 
     set is_hw_emu            [dict get $config_info is_hw_emu]
     set is_versal            [dict get $config_info is_versal]
     set enable_versal_dfx    [dict get $config_info enable_versal_dfx]
+    set steps_log            [dict get $config_info steps_log] 
 
+    # note: if block has its own frame
+    set line_base [lineNumber [info frame]] 
     if { [catch {
       if {$open_design} {
-        # this tcl proc is invoked at the top vivado project (see copy_impl_run_output_files)
+        # invoked at the top vivado project (see copy_impl_run_output_files)
+        # usecases:
+        #    user sets param compiler.generateHwPlatformInTopVivado to true
+        #        note: compiler.generateHwPlatformInTopVivado is false by default
+        #    default behavior for versal dfx platform
         # current working directory is the _x/link/vivado/vpl
+
         # open the impl run
         # TODO: in order for generated fixed platform to contain hdf content, we 
         # need an implemented design in memory
@@ -1744,7 +1770,11 @@ namespace eval ocl_util {
         puts "hw_export: open_run impl_1"
         open_run impl_1
       } else {
-        # this tcl proc is invoked as part of the write_bit/pdi post tcl hook in impl run
+        # invoked as part of the write_bit/pdi post tcl hook in impl run
+        # usecases:
+        #     --reuse_impl (see create_bitstreams_without_implementation)
+        #         note: in this case, platform.full_pdi_file is already set
+        #     default behavior for versal flat platform
         # current working directory is the impl run directory (_x/link/vivado/vpl/prj/prj.runs/impl_1/)
         # when hw_export is enabled for versal platform, run property GEN_FULL_BISTREAM is set to 
         # true (see HPIVplScriptWriter). when usesPR is true, this will generate both full and partial
@@ -1774,12 +1804,19 @@ namespace eval ocl_util {
       set_property platform.design_intent.embedded $design_intent_embedded [current_project] 
       set_property platform.uses_pr $hw_platform_uses_pr [current_project] 
 
-      set include_bit_option ""
+      set include_option ""
       if {!$is_hw_emu} {
-        set include_bit_option "-include_bit"
+        if {!$is_versal} {
+          # non-versal + hw flow only
+          set include_option "-include_bit"
+        }
+      } else {
+        # hw_emu
+        set include_option "-include_sim_content"
       }
 
       set rp_option ""
+      # versal dfx + hw flow only
       if {!$is_hw_emu && $enable_versal_dfx} {
         set rp_option "-rp $ocl_inst_path"
       }
@@ -1795,10 +1832,14 @@ namespace eval ocl_util {
       set_property tool_flow SDx [current_project]
       puts "hw_export: tool_flow = [get_property tool_flow [current_project]]"
 
-      puts "hw_export: write_hw_platform -fixed $include_bit_option $rp_option $vpl_output_dir/$fixed_xsa"
-      write_hw_platform -fixed {*}$include_bit_option {*}$rp_option $vpl_output_dir/$fixed_xsa
+      ocl_util::add_to_steps_log $steps_log "internal step: write_hw_platform -fixed $include_option $rp_option \
+         $vpl_output_dir/$fixed_xsa" [fileName]:[expr [lineNumber [info frame]] + $line_base]
+      puts "hw_export: write_hw_platform -fixed $include_option $rp_option $vpl_output_dir/$fixed_xsa"
+      write_hw_platform -fixed {*}$include_option {*}$rp_option $vpl_output_dir/$fixed_xsa
     } catch_res] } {
-      puts "WARNING: Failed to generate fixed platform $vpl_output_dir/$fixed_xsa: $catch_res"
+      # we should error out if write_hw_platform fails
+      error2file $vivado_output_dir "Failed to generate fixed platform $vpl_output_dir/$fixed_xsa: $catch_res.\
+                                     Please look at the vivado.log file for more information" 
     }
   }
 
@@ -1881,16 +1922,6 @@ namespace eval ocl_util {
     set return_pre_sys_link_tcl [dict get $config_info return_pre_sys_link_tcl]
 
     if { ![string equal $user_pre_sys_link_tcl ""] && [file exists $user_pre_sys_link_tcl] } {
-      # OPTRACE "Sourcing user pre_sys_link Tcl script" START
-      # add_to_steps_log $steps_log "internal step: source $user_pre_sys_link_tcl" [fileName]:[lineNumber [info frame]]
-      # if { [catch {source $user_pre_sys_link_tcl} result return_options_dict] } {
-      #   set sw_persona_msg "Failed to update block diagram in project required for hardware synthesis. "
-      #   append sw_persona_msg "The project is '$project_name'. The user supplied update script is "
-      #   append sw_persona_msg "'$user_pre_sys_link_tcl'. The script was provided using parameter "
-      #   append sw_persona_msg "'compiler.userPreSysLinkTcl'."
-      #   OPTRACE "Sourcing user pre_sys_link Tcl script" END
-      #   log_exception $vivado_output_dir $sw_persona_msg $result $return_options_dict
-      # }
       # OPTRACE "Sourcing user pre_sys_link Tcl script" END
       set optrace_task "Source user pre_sys_link Tcl script"
       set sw_persona_msg "Failed to update block diagram in project required for hardware synthesis. \
@@ -1998,12 +2029,14 @@ namespace eval ocl_util {
     # so, we can *not* use dr_bd_name for hw_emu flow
     # note: we should be able to use dr_bd_name for soc platform + hw_emu flow
     if {$dr_bd_name ne "" && !$is_hw_emu} {
+      # puts "dbg: dr_bd_name is $dr_bd_name"
       # pcie platform + hw flow; soc platform + hw flow
       set bd_file $dr_bd_name
     } else {
       # pcie platform + hw_emu flow
       # get the base file name of $hw_platform_dr_bd (i.e. emu.bd)
       if {$hw_platform_dr_bd ne ""} {
+        # puts "dbg: hw_platform_dr_bd is $hw_platform_dr_bd"
         set bd_file [file tail $hw_platform_dr_bd]
       } else {
 
@@ -2011,6 +2044,7 @@ namespace eval ocl_util {
         # for soc platform, there is no dr_bd file captured in the hw platform
         # we assume there is only bd in the project after sourcing rebuild.tcl
         if { [string equal $hw_platform_state "pre_synth"] } {
+          # puts "dbg: \[get_files *.bd\] is [get_files *.bd]"
           set bd_file [file tail [lindex [get_files *.bd] 0]]
         }
       }
@@ -2053,22 +2087,11 @@ namespace eval ocl_util {
     }
 
     set steps_log           [dict get $config_info steps_log] 
-    # set output_dir          [dict get $config_info output_dir] 
     set vivado_output_dir   [dict get $config_info vivado_output_dir] 
     set project_name        [dict get $config_info proj_name]
 
     # post_sys_link_tcl needs to be sourced after sourcing dr_bd_tcl
     if { ![string equal $post_sys_link_tcl ""] && [file exists $post_sys_link_tcl] } {
-      # OPTRACE "Sourcing hardware platform $hook_name Tcl script" START
-      # add_to_steps_log $steps_log "internal step: source $post_sys_link_tcl" [fileName]:[lineNumber [info frame]]
-      # if { [catch {source $post_sys_link_tcl} result return_options_dict] } {
-      #   set sw_persona_msg "Failed to update block diagram in project required for hardware synthesis. "
-      #   append sw_persona_msg "The project is '$project_name'. The update script is "
-      #   append sw_persona_msg "'$post_sys_link_tcl'. The update script was delivered as "
-      #   append sw_persona_msg "part of the hardware platform."
-      #   OPTRACE "Sourcing hardware platform $hook_name Tcl script" END
-      #   log_exception $vivado_output_dir $sw_persona_msg $result $return_options_dict
-      # }
       set optrace_task "Source hardware platform $hook_name Tcl script"
       set sw_persona_msg "Failed to update block diagram in project required for hardware synthesis. \
                          The project is '$project_name'. The update script is '$post_sys_link_tcl'. \
@@ -2098,17 +2121,6 @@ namespace eval ocl_util {
       validate_bd_design -force
       OPTRACE "Validate BD" END
 
-      # OPTRACE "Sourcing user $hook_name Tcl script" START
-      # add_to_steps_log $steps_log "internal step: source $user_post_sys_link_tcl" [fileName]:[lineNumber [info frame]]
-      # if { [catch {source $user_post_sys_link_tcl} result return_options_dict] } {
-      #   set sw_persona_msg "Failed to update block diagram in project required for hardware synthesis. "
-      #   append sw_persona_msg "The project is '$project_name'. The user provided update script is "
-      #   append sw_persona_msg "'$user_post_sys_link_tcl'. The script was provided using parameter "
-      #   append sw_persona_msg "'$param_name'."
-      #   OPTRACE "Sourcing user $hook_name Tcl script" END
-      #   log_exception $vivado_output_dir $sw_persona_msg $result $return_options_dict
-      # }
-      # OPTRACE "Sourcing user $hook_name Tcl script" END
       set optrace_task "Source user $hook_name Tcl script"
       set sw_persona_msg "Failed to update block diagram in project required for hardware synthesis. \
                          The project is '$project_name'. The user provided update script is '$user_post_sys_link_tcl'.\
@@ -2283,7 +2295,7 @@ namespace eval ocl_util {
     }
 
     if { $ip_repo_paths ne "" } {
-      puts "INFO: \[OCL_UTIL\] setting ip_repo_paths: $ip_repo_paths"
+      puts "INFO: \[OCL_UTIL\] set_property ip_repo_paths $ip_repo_paths \[current_project\]"
       set_property ip_repo_paths $ip_repo_paths [current_project] 
       add_to_steps_log $steps_log "internal step: update_ip_catalog" [fileName]:[lineNumber [info frame]]
       update_ip_catalog
@@ -2459,6 +2471,28 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
     } 
     puts $fp "</xd:addressMap>"
     close $fp
+  }
+
+  proc set_max_threads_param_synth {} {
+    # set the param value to 1 for synthesis run(s)
+    #     this was the request from Sudipto to address a runtime/memory issue in 2017.4
+    #     synthesis itself seems to be doing more aggressive parallelization by launching multiple 
+    #     parallel_synth helper processes for each of the OOC runs, set this param to 1 to reduce 
+    #     the cpu and memory usage
+    #  return the previous value (either default or user value) 
+    set val [get_param general.maxThreads]
+    puts "INFO: \[OCL_UTIL\] parameter general.maxThreads has value $val, set it to 1 for synthesis runs to reduce cpu and memory usage"
+    set_param general.maxThreads 1
+    return $val
+  }
+
+  proc restore_max_threads_param {prev_val} {
+    # if prev_val is empty, do nothing
+    # else restore general.maxThreads to previous value
+    if {$prev_val ne ""} {
+      puts "INFO: \[OCL_UTIL\] restore parameter general.maxThreads to $prev_val"
+      set_param general.maxThreads $prev_val
+    }
   }
 
   ################################################################################
@@ -2647,13 +2681,14 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
   #   Arguments:
   #      config_info
   ################################################################################
-  # proc generate_kernel_inst_path_data {steps_log vpl_output_dir} 
-  proc generate_kernel_inst_path_data {config_info} { 
+  proc generate_kernel_inst_path_data {config_info hw_platform_info} { 
     set steps_log       [dict get $config_info steps_log] 
     set vpl_output_dir  [dict get $config_info vpl_output_dir] 
     set dr_bd           [dict get $config_info dr_bd] 
     # set top_bd          [dict get $config_info top_bd] 
     set dr_bd_inst_path [dict get $config_info dr_bd_inst_path] 
+    # this is source view instance path (not netlist view)
+    set source_view_dr_inst_path [dict get $hw_platform_info source_view_dr_inst_path] 
 
     # Note: inst_path for EMU_DR_BD is introduced in 2020.1, if 
     #    this entry exist, we should use it as the dr bd inst path
@@ -2666,6 +2701,18 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
     # Note: this entry may not exist in older platforms, in which case
     #   we should figure it out by looking up the instance name of the
     #   dr bd.
+
+    # starting 2021.2 we no longer generate hw platform which contains hw_emu content, instead
+    # we generate distinct hw and hw_emu xsa. there is no more hw_emu folder or hw_emu.json
+    # per Prasad's request, we added a new attribute "sourceViewInstPath" in xsa.json 
+    # along with the existing instPath attribute
+    #   instPath: netlist view instance path to dr bd
+    #   sourceViewInstPath: source view instance path to dr bd from user top module.
+    # sourceViewInstPath is required for emulation waveform
+    # 
+    # but we still need to take the dr_bd_inst_path into account to support old
+    # platforms which contain hw_emu folder and hw_emu.json
+    # e.g. xilinx_u200_gen3x16_xdma_1_202110_1
 
     # note: this file is used by rtdgen, see HPIRtdGen::execHwEmu_simple
     add_to_steps_log $steps_log "internal step: creating $vpl_output_dir/_kernel_inst_paths.dat" [fileName]:[lineNumber [info frame]]
@@ -2692,10 +2739,18 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
     set top_bd_name [get_property name [current_bd_design]]
     # puts "--- DEBUG: top_bd_name $top_bd_name"
 
-    set resolved_dr_bd_inst_path $dr_bd_inst_path
-    # If dr_bd is empty, set resolved_dr_bd_inst_path using only top_bd_name.
-    # The dr_bd could be empty if the platform is pre_synth, e.g. zcu102.
+    # puts "--- DEBUG: source_view_dr_inst_path $source_view_dr_inst_path"
+    # puts "--- DEBUG: dr_bd_inst_path $dr_bd_inst_path"
+    # if source_view_dr_inst_path is not empty, we should use it
+    # else, we will try the old dr_bd_inst_path
+    if {$source_view_dr_inst_path ne ""} {
+      set resolved_dr_bd_inst_path $source_view_dr_inst_path
+    } else {
+      set resolved_dr_bd_inst_path $dr_bd_inst_path
+    }
+
     if {$dr_bd_name ne "" && $dr_bd_name ne $top_bd_name} {
+      # puts "--- DEBUG: two BD usecase"
       # two BD usecase
       if {$resolved_dr_bd_inst_path eq ""} {
         # in the two BD usecase, the dr bd itself is a bd cell in the top bd,
@@ -2743,6 +2798,7 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
       #     in this case, dr_bd is empty
       # or dfx platform which has a "hw_emu" folder, but there is only one emu bd
       #     in this case, dr_bd == top_bd
+      # puts "--- DEBUG: one BD usecase"
       if {$resolved_dr_bd_inst_path eq ""} {
         set resolved_dr_bd_inst_path "/${top_bd_name}_wrapper/${top_bd_name}_i"
         #puts "--- DEBUG: 1bd resolved_dr_bd_inst_path is $resolved_dr_bd_inst_path"
@@ -3424,46 +3480,46 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
   }
 
   # only used for wait_on_first_run cases of multi-strategies, check if a run meets timing
-  proc is_best_run {impl_run wns_threshold ignore_hold_vio} {
+  # this tcl proc is called by wait_on_first_run_local_ or wait_on_first_run_lsf_ for each
+  # completed impl run
+  proc is_best_run {impl_run clk_info link_output_format} {
+    set wns_threshold       [dict get $clk_info worst_negative_slack]
+    set error_on_hold_vio   [dict get $clk_info error_on_hold_violation]
+    set error_on_pw_vio     [dict get $clk_info error_on_pw_violation]
+
+    set ignore_hold_vio     [expr ! $error_on_hold_vio]
+    set ignore_pw_vio       [expr ! $error_on_pw_vio]
 
     # timing closed best run => Condition for this is WNS/WHS/TPWS values are >=0
     # non timing closed best run => 
     #    check the slack value provided by param compiler.worstNegativeSlack=-0.050
     set run_obj [get_runs $impl_run]
-    set run_status [get_property STATUS [get_runs $impl_run]]
-    # puts "debug: $impl_run status is $run_status"
+    # set run_status [get_property STATUS [get_runs $impl_run]]
+    # puts "is_best_run: $impl_run status is $run_status"
 
-    if {$run_status ne "write_bitstream Complete!" && $run_status ne "write_device_image Complete!"} {
-      return false
-    }
+    # to remove
+    # if {$run_status ne "write_bitstream Complete!" && $run_status ne "write_device_image Complete!"} {
+    #   return false
+    # }
 
-    # worst negative slack (setup)
-    set wns [get_property STATS.WNS $run_obj]
-    # worst hold slack
-    set whs [get_property STATS.WHS $run_obj]
-    # Total pulse width slack
-    set tpws [get_property STATS.TPWS $run_obj]
-    # puts "\tWNS: $wns"
-    # puts "\tWHS: $whs"
-    # puts "\tTPWS: $tpws" 
-
-
-    if {$wns >= 0 && $whs >= 0 && $tpws >=0} {
+    set run_timing_status [get_run_timing_status $run_obj $$wns_threshold $ignore_hold_vio $ignore_pw_vio $link_output_format]
+    if {$run_timing_status eq "timing closed" || $run_timing_status eq "non timing closed"} {
       return true
     } else {
-      # take compiler.worstNegativeSlack and compiler.errorOnHoldViolation into account
-      if { $wns >= $wns_threshold && 
-           ($whs >= 0 || $ignore_hold_vio) && 
-           $tpws >=0 } {
-        return true
-      } else {
-        return false
-      }
+      return false
     }
   }
 
   # only used for wait_on_all_runs case of multi-strategies
-  proc report_wns_stats {impl_runs wns_threshold ignore_hold_vio steps_log best_run_var} {
+  # this tcl proc is called by wait_on_all_runs_ only once when all impl runs are done
+  proc report_wns_stats {impl_runs clk_info steps_log link_output_format best_run_var} {
+    set wns_threshold       [dict get $clk_info worst_negative_slack]
+    set error_on_hold_vio   [dict get $clk_info error_on_hold_violation]
+    set error_on_pw_vio     [dict get $clk_info error_on_pw_violation]
+
+    set ignore_hold_vio     [expr ! $error_on_hold_vio]
+    set ignore_pw_vio       [expr ! $error_on_pw_vio]
+
     upvar $best_run_var best_run
 
     # timing closed best run => 
@@ -3479,53 +3535,28 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
     set timing_closed_best ""
     set non_timing_closed_best ""
 
-    puts "\nMulti-strategy Flow Summary:"
-    puts "     compiler.worstNegativeSlack: $wns_threshold"
-    puts "     compiler.errorOnHoldViolation: [expr ! $ignore_hold_vio]"
+    print_timing_summary_header $wns_threshold $ignore_hold_vio $ignore_pw_vio
+
     foreach impl_run $impl_runs {
       set run_status [get_property STATUS [get_runs $impl_run]]
-      # puts "$impl_run status is $run_status"
+      # puts "report_wns_stats: $impl_run status is $run_status"
       # impl_runs may contain useless run, e.g. my_rm_impl_1
       # we should filter it out
       if {$run_status eq "Not started"} {
         continue
       }
 
-      # worst negative slack (setup)
-      set wns [get_property STATS.WNS $impl_run]
-      # set wns -$wns
-      # worst hold slack
-      set whs [get_property STATS.WHS $impl_run]
-      # Total pulse width slack
-      set tpws [get_property STATS.TPWS $impl_run]
-
-
-      if {$wns >= 0 && $whs >= 0 && $tpws >=0} {
+      set run_timing_status [get_run_timing_status $impl_run $$wns_threshold $ignore_hold_vio $ignore_pw_vio $link_output_format true]
+      if {$run_timing_status eq "timing closed" } {
         if { $timing_closed_best eq ""} {
-          # * indicates the selected timing closed best run
-          puts "*Run: $impl_run : $run_status (timing closed)"
           set timing_closed_best $impl_run
-        } else {
-          puts "Run: $impl_run : $run_status (timing closed)"
-        }
-      } else {
-        # take compiler.worstNegativeSlack and compiler.errorOnHoldViolation into account
-        if { $wns >= $wns_threshold && 
-             ($whs >= 0 || $ignore_hold_vio) && 
-             $tpws >=0 } {
-          if { $non_timing_closed_best eq ""} {
-            puts "Run: $impl_run : $run_status (non timing closed)"
-            set non_timing_closed_best $impl_run
-          } else {
-            puts "Run: $impl_run : $run_status (non timing closed)"
-          }
-        } else {
-          puts "Run: $impl_run : $run_status (timing failed)"
-        }
+        } 
       }
-      puts "\tWNS: $wns"
-      puts "\tWHS: $whs"
-      puts "\tTPWS: $tpws" 
+      if {$run_timing_status eq "non timing closed" } {
+        if { $non_timing_closed_best eq ""} {
+          set non_timing_closed_best $impl_run
+        } 
+      }
     }
 
     if {$timing_closed_best ne ""} {
@@ -3544,6 +3575,154 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
     add_to_steps_log $steps_log "Multi-strategy Flow: $summary" [fileName]:[lineNumber [info frame]]
   }
 
+  # helper function
+  proc get_run_timing_status {impl_run wns_threshold ignore_hold_vio ignore_pw_vio link_output_format {is_print false}} {
+
+    set run_status [get_property STATUS [get_runs $impl_run]]
+    set complete_status {"write_bitstream Complete!" "write_device_image Complete!"}
+    # when accleratorBinaryContent is "dcp", the impl run ends at route_design
+    if { [string equal $link_output_format "dcp"] } {
+      # is post_route_phys_opt_design enabled
+      set is_post_route_phys_opt_design_enabled [get_property STEPS.POST_ROUTE_PHYS_OPT_DESIGN.IS_ENABLED [get_runs $impl_run]]
+      # puts "dbg: is_post_route_phys_opt_design_enabled : $is_post_route_phys_opt_design_enabled"
+      if {$is_post_route_phys_opt_design_enabled} {
+        set complete_status {"phys_opt_design (Post-Route) Complete!"}
+      } else {
+        set complete_status {"route_design Complete!"}
+      }
+    }
+    # puts "dbg: link_output_format : $link_output_format"
+    # puts "dbg: $impl_run : $run_status"
+    # puts "dbg: complete_status : $complete_status"
+    if {[lsearch $complete_status $run_status] == -1} {
+      puts "Run: $impl_run : $run_status"
+      return ""
+    } 
+
+    # worst negative slack (setup)
+    set wns [get_property STATS.WNS $impl_run]
+    # worst hold slack
+    set whs [get_property STATS.WHS $impl_run]
+    # Total pulse width slack
+    set tpws [get_property STATS.TPWS $impl_run]
+
+    set timing_status ""
+    if { $wns eq "" || $whs eq "" || $tpws eq ""} {
+      set timing_status "no or missing timing data"
+    } else {
+      if {$wns >= 0 && $whs >= 0 && $tpws >=0} {
+        set timing_status "timing closed"
+      } else {
+        # take the following parameters into account
+        #   compiler.worstNegativeSlack
+        #   compiler.errorOnHoldViolation 
+        #   compiler.errorOnPulseWidthViolation
+        if { $wns >= $wns_threshold && 
+             ($whs >= 0 || $ignore_hold_vio) && 
+             ($tpws >=0 || $ignore_pw_vio) } {
+          set timing_status "non timing closed"
+        } else {
+          set timing_status "timing failed"
+        }
+      }
+    }
+    if {$is_print} {
+      puts "Run: $impl_run : $timing_status"
+      puts "\tWNS: $wns"
+      puts "\tWHS: $whs"
+      puts "\tTPWS: $tpws" 
+    }
+    return $timing_status
+  }
+
+  proc print_timing_summary_header {wns_threshold ignore_hold_vio ignore_pw_vio} {
+    puts "\nMulti-strategy Timing Summary:"
+    puts "     compiler.worstNegativeSlack: $wns_threshold"
+    puts "     compiler.errorOnHoldViolation: [expr ! $ignore_hold_vio]"
+    puts "     compiler.errorOnPulseWidthViolation: [expr ! $ignore_pw_vio]"
+  }
+
+  # called by wait_on_first_run_local_ and wait_on_first_run_lsf_
+  proc print_multi_strategies_timing_summary {impl_runs clk_info link_output_format} {
+    set wns_threshold       [dict get $clk_info worst_negative_slack]
+    set error_on_hold_vio   [dict get $clk_info error_on_hold_violation]
+    set error_on_pw_vio     [dict get $clk_info error_on_pw_violation]
+
+    set ignore_hold_vio     [expr ! $error_on_hold_vio]
+    set ignore_pw_vio       [expr ! $error_on_pw_vio]
+
+    print_timing_summary_header $wns_threshold $ignore_hold_vio $ignore_pw_vio
+
+    foreach impl_run $impl_runs {
+      get_run_timing_status $impl_run $$wns_threshold $ignore_hold_vio $ignore_pw_vio $link_output_format true
+    }
+  }
+
+
+  # for each $impl_runs
+  #   create a sub-directory: scripts/$run_name
+  #   copy scripts/.full_* to scripts/$run_name/_full_*
+  #   for each _full_* file
+  #      open the file
+  #      parse scripts/.user_* file if it exists
+  #      if run_name matches or __ALL_IMPL__, append a line with "source <tcl hook file path>"
+  proc write_tcl_hooks_for_impl_runs {impl_runs config_info} {
+    set scripts_dir      [dict get $config_info scripts_dir] 
+
+    foreach _run $impl_runs {
+      set scripts_run_dir $scripts_dir/$_run
+      if { [file exists $scripts_run_dir] } {
+        file delete -force $scripts_run_dir
+      }
+      file mkdir $scripts_run_dir
+      
+      set orig_full_scripts [glob -nocomplain "$scripts_dir/.full_*"]
+      # puts "dbg: copy orig_full_scdripts"
+      file copy -force {*}$orig_full_scripts $scripts_run_dir
+
+      set run_full_scripts [glob -nocomplain "$scripts_run_dir/.full_*"]
+      foreach dot_full_script $run_full_scripts {
+        # puts "dbg: dot_full_script is $dot_full_script"
+        # rename .full_* to _full_*
+        set base_name [string trimleft [file tail $dot_full_script] .]
+        set dir [file dirname $dot_full_script]
+        set _full_script $dir/_$base_name
+        # puts "dbg: rename $dot_full_script to $_full_script"
+        file rename $dot_full_script $_full_script
+
+        regexp {_full_(.*).tcl} $_full_script match sub1
+        # puts "dbg: match is $match; sub1 is $sub1"
+        set user_dat $scripts_dir/.user_$sub1.dat 
+        # puts "dbg: user_dat is $user_dat"
+
+        if {[file exists $user_dat]} {
+          # open _full_script for appending
+          # open orig_user_script for reading
+          #   each line orig_user_script has the format of
+          #   <run name or "__ALL_IMPL__">|<script path> 
+          #   e.g. impl_Area_Explore|./pre_place.tcl
+          set out [open $_full_script a]
+          set in [open $user_dat r]
+          while {[gets $in line] >= 0} {
+            # puts "dbg: line is $line"
+            # ignore the first header line
+            if {[string first "|" $line] != -1} {
+              set fields [split $line "|"]
+              set run_name [lindex $fields 0]
+              set script [lindex $fields 1]
+              # puts "dbg: run_name is $run_name; script is $script; _run is $_run"
+  
+              if {[string compare -nocase $run_name "__ALL_IMPL__"] == 0 || $run_name eq $_run} {
+                puts $out "source $script"
+              }
+            }
+          }
+          close $out
+          close $in
+        }
+      } 
+    }
+  }
 
   ################################################################################
   # write_vpl_tcl_hooks
@@ -3600,6 +3779,8 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
     puts $outfile "  namespace import ocl_util::*"
     # puts $outfile "# get_script_dir returns [get_script_dir]"
     puts $outfile ""
+    # this variable is needed for error2file
+    puts $outfile "set VPL_ERROR_LOGGED 707" 
     # this variable is needed for support stepwise run, since v++ can start
     # impl run from any step
     puts $outfile "  set _is_init_cmds true"
@@ -3637,6 +3818,9 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
   # for single project flow only
   proc write_vpl_post_init_hook { hw_platform_info config_info clk_info } {
     set ocl_inst_path      [dict get $hw_platform_info ocl_region]
+    #set is_datacenter      [dict get $hw_platform_info design_intent_datacenter]
+    #set is_dfx             [dict get $hw_platform_info hw_platform_uses_pr]
+    set is_versal          [dict get $config_info is_versal]
     set steps_log          [dict get $config_info steps_log] 
     set scripts_dir        [dict get $config_info scripts_dir] 
     set vivado_output_dir  [dict get $config_info vivado_output_dir]  
@@ -3646,7 +3830,7 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
     set vpl_post_init_tcl "$scripts_dir/${tclhook_prefix}_post_init.tcl"
     set outfile [open $vpl_post_init_tcl w]
     puts $outfile "# This file was automatically generated by Vpl"
-    puts $outfile "write_user_impl_clock_constraint \"$ocl_inst_path\" \"$kernel_clock_freqs\" \"\" \$vivado_output_dir" 
+    puts $outfile "write_user_impl_clock_constraint \"$ocl_inst_path\" \"$kernel_clock_freqs\" \"\" \$vivado_output_dir \"$is_versal\""
 
     close $outfile
   }
@@ -3660,10 +3844,12 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
     set nifd_enabled     [dict get $config_info nifd_enabled] 
     
     # failfast_config is only available for unified platform
-    set failfast_config ""
-    if { [dict exists $config_info failfast_config] } {
-      set failfast_config  [dict get $config_info failfast_config]  
-    }
+    # set failfast_config ""
+    # if { [dict exists $config_info failfast_config] } {
+    #   set failfast_config  [dict get $config_info failfast_config]  
+    # }
+    set failfast_config       [dict get $config_info failfast_config]  
+    set qor_assessment_config [dict get $config_info qor_assessment_config]  
 
     set vpl_pre_opt_tcl "$scripts_dir/${tclhook_prefix}_pre_opt.tcl"
     set outfile [open $vpl_pre_opt_tcl w]
@@ -3673,6 +3859,7 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
 
     write_utilization_drc $config_info $hw_platform_info $outfile
 
+    # TODO: to remove
     if { [dict exists $failfast_config pre_opt_design] } {
       set failfast_args [dict get $failfast_config pre_opt_design]
       if { [llength $failfast_args] == 0} {
@@ -3681,6 +3868,9 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
       # added on 4/9/2018 - to support macro expansion for reporting
       report_failfast_helper $hw_platform_info $failfast_args $outfile
     }
+
+    write_report_qor_assessment $qor_assessment_config "pre_opt_design" $outfile
+
     # NIFD Support - Generate RAM utilization report post synthesis
     if {$nifd_enabled} {
       puts $outfile "report_ram_utilization -file ram.rpt"
@@ -3689,57 +3879,20 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
     close $outfile
   }
 
-  ## helper for failfast macro expansion
-  proc report_failfast_helper {hw_platform_info failfast_args outfile} {
-    # added on 4/9/2018 - to support macro expansion for reporting
-    set ocl_inst_path [dict get $hw_platform_info ocl_region]
-    if { [string equal $failfast_args "__OCL_TOP__"] } {
-      # If the ocl_region is empty (SoC), then drop the -pblock and -cell
-      if { [string equal $ocl_inst_path ""] } {
-        puts $outfile "if {\[catch {::tclapp::xilinx::designutils::report_failfast -detailed_report full.postopt -file full.postopt.failfast.rpt} _error\]} {"
-        puts $outfile "  puts \"The report_failfast command failed with message '\${_error}', the flow will continue but this report will be missing.\""
-        puts $outfile "}"
-      } else {
-        set ocl_inst_escaped [string map {/ _} $ocl_inst_path]
-        puts $outfile "set oclPblock \[get_pblocks -quiet -filter {PARENT==ROOT && EXCLUDE_PLACEMENT} -of \[get_cells $ocl_inst_path/*\]\] "
-        puts $outfile "if {\[catch {::tclapp::xilinx::designutils::report_failfast -detailed_report $ocl_inst_escaped.postopt -file $ocl_inst_escaped.postopt.failfast.rpt -pblock \$oclPblock -cell $ocl_inst_path} _error\]} {"
-        puts $outfile "  puts \"The report_failfast command failed with message '\${_error}', the flow will continue but this report will be missing.\""
-        puts $outfile "}"
-      }
-    } elseif { [string equal $failfast_args "__SLR__"] } {
-      puts $outfile "if {\[catch {::tclapp::xilinx::designutils::report_failfast -detailed_report bySLR.postplace -file bySLR.postplace.failfast.rpt -by_slr} _error\]} {"
-      puts $outfile "  puts \"The report_failfast command failed with message '\${_error}', the flow will continue but this report will be missing.\""
-      puts $outfile "}"
-    } elseif { [string equal $failfast_args "__KERNEL_NAMES__"] } {
-      puts $outfile "foreach kernel_inst \[::ocl_util::get_kernel_cells \"$ocl_inst_path\"\] {"
-      # get the kernel name (for hls kernel, the orig_ref_name seems to be the kernel name) 
-      puts $outfile "  set kernel_name \[get_property ORIG_REF_NAME \$kernel_inst\]"
-      puts $outfile "  set oclPblock \[get_pblocks -quiet -filter {PARENT==ROOT && EXCLUDE_PLACEMENT} -of \[get_cells \$kernel_inst\]\] "
-      puts $outfile "  # Skip if oclPblock is empty, SoC Platforms will match this criteria"
-      puts $outfile "  if {!\[string equal \$oclPblock \"\"\]} {"
-      puts $outfile "    if {\[catch {::tclapp::xilinx::designutils::report_failfast -show_resource -detailed_report \$kernel_name.postsynth -file \$kernel_name.postsynth.failfast.rpt -cell \$kernel_inst -pblock  \$oclPblock} _error\]} {"
-      puts $outfile "      puts \"The report_failfast command failed with message '\${_error}', the flow will continue but this report will be missing.\""
-      puts $outfile "    }"
-      puts $outfile "  }"
-      puts $outfile "}"
-    } else {
-      puts $outfile "if {\[catch {::tclapp::xilinx::designutils::report_failfast $failfast_args} _error\]} {"
-      puts $outfile "  puts \"The report_failfast command failed with message '\${_error}', the flow will continue but this report will be missing.\""
-      puts $outfile "}"
-    }
-  }
 
   # create a post tcl hook for opt_design
   proc write_vpl_post_opt_hook { config_info hw_platform_info} {
-    set ocl_inst_path    [dict get $hw_platform_info ocl_region]
-    set scripts_dir      [dict get $config_info scripts_dir] 
-    set tclhook_prefix   [dict get $config_info tclhook_prefix] 
-    set failfast_config  [dict get $config_info failfast_config]  
+    set ocl_inst_path         [dict get $hw_platform_info ocl_region]
+    set scripts_dir           [dict get $config_info scripts_dir] 
+    set tclhook_prefix        [dict get $config_info tclhook_prefix] 
+    set failfast_config       [dict get $config_info failfast_config]  
+    set qor_assessment_config [dict get $config_info qor_assessment_config]  
 
     set vpl_post_opt_tcl "$scripts_dir/${tclhook_prefix}_post_opt.tcl"
     set outfile [open $vpl_post_opt_tcl w]
     puts $outfile "# This file was automatically generated by Vpl"
 
+    # TODO: to remove
     if { [dict exists $failfast_config post_opt_design] } {
       set failfast_args [dict get $failfast_config post_opt_design]
       if { [llength $failfast_args] == 0} {
@@ -3749,6 +3902,8 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
       report_failfast_helper $hw_platform_info $failfast_args $outfile
     }
     
+    write_report_qor_assessment $qor_assessment_config "post_opt_design" $outfile
+
     close $outfile
   }
 
@@ -3804,29 +3959,30 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
   # timing report/frequency scaling operations are done here
   # if post_route_phys_opt_design is not enabled
   proc write_vpl_post_route_hook { hw_platform_info config_info clk_info } {
-    set ocl_inst_path        [dict get $hw_platform_info ocl_region]
-    set bb_locked_dcp        [dict get $hw_platform_info bb_locked_dcp]
-    set pr_shell_dcp         [dict get $hw_platform_info pr_shell_dcp]
-    set uses_pr_shell_dcp    [dict get $hw_platform_info uses_pr_shell_dcp]
-    set link_output_format   [dict get $hw_platform_info link_output_format]
+    set ocl_inst_path         [dict get $hw_platform_info ocl_region]
+    set bb_locked_dcp         [dict get $hw_platform_info bb_locked_dcp]
+    set pr_shell_dcp          [dict get $hw_platform_info pr_shell_dcp]
+    set uses_pr_shell_dcp     [dict get $hw_platform_info uses_pr_shell_dcp]
+    set link_output_format    [dict get $hw_platform_info link_output_format]
 
-    set design_name          [dict get $config_info design_name]
-    set enable_util_report   [dict get $config_info enable_util_report] 
-    set kernels              [dict get $config_info kernels]
-    set clbinary_name        [dict get $config_info clbinary_name]
-    set encrypt_impl_dcp     [dict get $config_info encrypt_impl_dcp]
-    set encrypt_key_file     [dict get $config_info encrypt_key_file]
-    set enable_pr_verify     [dict get $config_info enable_pr_verify]
-    set local_dir            [dict get $config_info local_dir] 
-    set scripts_dir          [dict get $config_info scripts_dir] 
-    set vivado_output_dir    [dict get $config_info vivado_output_dir] 
+    set design_name           [dict get $config_info design_name]
+    set enable_util_report    [dict get $config_info enable_util_report] 
+    set kernels               [dict get $config_info kernels]
+    set clbinary_name         [dict get $config_info clbinary_name]
+    set encrypt_impl_dcp      [dict get $config_info encrypt_impl_dcp]
+    set encrypt_key_file      [dict get $config_info encrypt_key_file]
+    set enable_pr_verify      [dict get $config_info enable_pr_verify]
+    set local_dir             [dict get $config_info local_dir] 
+    set scripts_dir           [dict get $config_info scripts_dir] 
+    set vivado_output_dir     [dict get $config_info vivado_output_dir] 
     # TODO: input_dir is not used
-    set input_dir            [dict get $config_info input_dir] 
-    set failfast_config      [dict get $config_info failfast_config]  
-    set tclhook_prefix       [dict get $config_info tclhook_prefix]
-    set steps_log            [dict get $config_info steps_log]
-    set vpl_output_dir       [dict get $config_info vpl_output_dir]
-    set strategies       [dict get $config_info strategies_impl]
+    set input_dir             [dict get $config_info input_dir] 
+    set failfast_config       [dict get $config_info failfast_config]  
+    set qor_assessment_config [dict get $config_info qor_assessment_config]  
+    set tclhook_prefix        [dict get $config_info tclhook_prefix]
+    set steps_log             [dict get $config_info steps_log]
+    set vpl_output_dir        [dict get $config_info vpl_output_dir]
+    set strategies            [dict get $config_info strategies_impl]
 
     set vpl_post_route_tcl "$scripts_dir/${tclhook_prefix}_post_route.tcl"
     set outfile [open $vpl_post_route_tcl w]
@@ -3890,6 +4046,7 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
       puts $outfile "write_debug_probes -force -quiet -no_partial_ltxfile \[format \"%s/%s\" \".\" debug_nets.ltx\]"
     }
 
+    # TODO: to remove
     if { [dict exists $failfast_config post_route_design] } {
       set failfast_args [dict get  $failfast_config post_route_design]
       if { [llength $failfast_args] == 0} {
@@ -3898,6 +4055,8 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
       # added on 4/9/2018 - to support macro expansion for reporting
       report_failfast_helper $hw_platform_info $failfast_args $outfile
     }
+
+    write_report_qor_assessment $qor_assessment_config "post_route_design" $outfile
 
     # update noc nodes in debug_ip_layout
     puts $outfile "# update noc node information"
@@ -3962,12 +4121,69 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
     puts $outfile "# This file was automatically generated by Vpl"
     if {!$gen_fixed_xsa_in_top_prj} {
       if {$is_hw_export} {
-        puts $outfile "ocl_util::generate_fixed_hw_platform \"$hw_platform_info\" \"$config_info\" false"
+        puts $outfile "ocl_util::generate_fixed_hw_platform {$hw_platform_info} {$config_info} false"
         # puts $outfile "ocl_util::generate_fixed_hw_platform \$hw_platform_info \$config_info false"
       }
     }
     close $outfile
   }
+
+  ## helper for failfast macro expansion
+  proc report_failfast_helper {hw_platform_info failfast_args outfile} {
+    # added on 4/9/2018 - to support macro expansion for reporting
+    set ocl_inst_path [dict get $hw_platform_info ocl_region]
+    if { [string equal $failfast_args "__OCL_TOP__"] } {
+      # If the ocl_region is empty (SoC), then drop the -pblock and -cell
+      if { [string equal $ocl_inst_path ""] } {
+        puts $outfile "if {\[catch {::tclapp::xilinx::designutils::report_failfast -detailed_report full.postopt -file full.postopt.failfast.rpt} _error\]} {"
+        puts $outfile "  puts \"The report_failfast command failed with message '\${_error}', the flow will continue but this report will be missing.\""
+        puts $outfile "}"
+      } else {
+        set ocl_inst_escaped [string map {/ _} $ocl_inst_path]
+        puts $outfile "set oclPblock \[get_pblocks -quiet -filter {PARENT==ROOT && EXCLUDE_PLACEMENT} -of \[get_cells $ocl_inst_path/*\]\] "
+        puts $outfile "if {\[catch {::tclapp::xilinx::designutils::report_failfast -detailed_report $ocl_inst_escaped.postopt -file $ocl_inst_escaped.postopt.failfast.rpt -pblock \$oclPblock -cell $ocl_inst_path} _error\]} {"
+        puts $outfile "  puts \"The report_failfast command failed with message '\${_error}', the flow will continue but this report will be missing.\""
+        puts $outfile "}"
+      }
+    } elseif { [string equal $failfast_args "__SLR__"] } {
+      puts $outfile "if {\[catch {::tclapp::xilinx::designutils::report_failfast -detailed_report bySLR.postplace -file bySLR.postplace.failfast.rpt -by_slr} _error\]} {"
+      puts $outfile "  puts \"The report_failfast command failed with message '\${_error}', the flow will continue but this report will be missing.\""
+      puts $outfile "}"
+    } elseif { [string equal $failfast_args "__KERNEL_NAMES__"] } {
+      puts $outfile "foreach kernel_inst \[::ocl_util::get_kernel_cells \"$ocl_inst_path\"\] {"
+      # get the kernel name (for hls kernel, the orig_ref_name seems to be the kernel name) 
+      puts $outfile "  set kernel_name \[get_property ORIG_REF_NAME \$kernel_inst\]"
+      puts $outfile "  set oclPblock \[get_pblocks -quiet -filter {PARENT==ROOT && EXCLUDE_PLACEMENT} -of \[get_cells \$kernel_inst\]\] "
+      puts $outfile "  # Skip if oclPblock is empty, SoC Platforms will match this criteria"
+      puts $outfile "  if {!\[string equal \$oclPblock \"\"\]} {"
+      puts $outfile "    if {\[catch {::tclapp::xilinx::designutils::report_failfast -show_resource -detailed_report \$kernel_name.postsynth -file \$kernel_name.postsynth.failfast.rpt -cell \$kernel_inst -pblock  \$oclPblock} _error\]} {"
+      puts $outfile "      puts \"The report_failfast command failed with message '\${_error}', the flow will continue but this report will be missing.\""
+      puts $outfile "    }"
+      puts $outfile "  }"
+      puts $outfile "}"
+    } else {
+      puts $outfile "if {\[catch {::tclapp::xilinx::designutils::report_failfast $failfast_args} _error\]} {"
+      puts $outfile "  puts \"The report_failfast command failed with message '\${_error}', the flow will continue but this report will be missing.\""
+      puts $outfile "}"
+    }
+  }
+
+  ## helper for report_qor_assessment
+  proc write_report_qor_assessment {qor_assessment_config run_step outfile} {
+
+    if { [dict exists $qor_assessment_config $run_step] } {
+      set qor_assessment_args [dict get $qor_assessment_config $run_step]
+      if { [llength $qor_assessment_args] == 0} {
+        set qor_assessment_args ""
+      }
+
+      set rpt_file "qor_assessment_$run_step.rpt"
+      puts $outfile "if {\[catch {report_qor_assessment -file $rpt_file $qor_assessment_args} _error\]} {"
+      puts $outfile "  puts \"The report_qor_assessment command failed with message '\${_error}', the flow will continue but this report will be missing.\""
+      puts $outfile "}"
+    }
+  }
+
 
   # TODO: input_dir is not used
   # this is part of post tcl hook for place_design and route_design
@@ -4051,7 +4267,7 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
     set scripts_dir          [dict get $config_info scripts_dir]
     set clbinary_name        [dict get $config_info clbinary_name]
     set tclhook_prefix       [dict get $config_info tclhook_prefix] 
-    set strategies_impl      [dict get $config_info strategies_impl] 
+    # set strategies_impl      [dict get $config_info strategies_impl] 
 
     # note: link_output_format could be "dcp", "bitstream", "pdi", "dcp, bitstream" and "dcp, pdi"
     #       except for "dcp", we should do timing check and frequency scaling
@@ -4204,6 +4420,11 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
 
       return 0;
     }
+
+    # TODO: check pulse width violation
+    # puts "INFO: \[OCL_UTIL\] report_pulse_width -all_violators"
+    # set pwv [ report_pulse_width -all_violators -return_string]
+    # puts "INFO: \[OCL_UTIL\] pwv is $pwv"
 
     # write the original clock frequencies in _new_ocl_freq file
     write_orig_clk_freq $new_clk_freq_file $clk_info
@@ -4477,6 +4698,12 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
       puts $outfile "kernel:$clk_id:$kernel_clk:$new_ocl_freq"
       append achieved "\nKernel: $kernel_clk = $new_ocl_freq MHz "
       append purpose [kernel_clock_purpose $kernel_clk $clk_id $kernel_counts]
+
+      # Update the system diagram with this new clock information as well.
+      if { [ catch { ::system_diagram::update_xsa_clock -id $clk_id -requested $orig_clk_freq -achieved $new_ocl_freq } results ] } {
+        puts "WARNING: System Diagram update of kernel clock: $results"
+      }
+
     }
 
     # Handles scalable system clocks
@@ -4630,9 +4857,10 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
         if { ![file exists $timing_file_exists] } {
           report_timing_summary -slack_lesser_than $worst_negative_slack -file $abs_timing_file
         }
+        # Log the report to the summary file so it will be archived.
+        vitis_log::report $abs_timing_file -file_type TEXT -report_type GLOBAL_REPORT_TIMING_SUMMARY_FAIL
         set clk_name [get_clock_name $clock_pin]
-        # set clk_ref_08 [::drcv::create_reference FILE  -name $clk -url "file:$abs_timing_file"]
-        set clk_ref_08 [::drcv::create_reference FILE  -name $clk_name -url "file:$abs_timing_file"]
+        set clk_ref_08 [::drcv::create_reference REPORT -report_type GLOBAL_REPORT_TIMING_SUMMARY_FAIL -name $clk_name -url "file:$abs_timing_file"]
         ::drcv::create_violation AUTO-FREQ-SCALING-08 -dynamic_category [list [list xclbin $clbinary_name]] -REF $clk_ref_08 -s $_new_clk_freq -s $orig_clk_freq
       }
       set _new_clk_freq $orig_clk_freq
@@ -4827,24 +5055,35 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
   }; # end convert_period_to_freq
 
   # initialize clkwiz debug instance run
-  proc initialize_clkwiz_debug {} {
-    load librdi_iptasks.so
-    set partinfo [get_property PART [current_project]]
-    Init_Clkwiz [current_project] test1 $partinfo
+  # different APIs for versal vs non-versal
+  proc initialize_clkwiz_debug {is_versal partinfo} {
+    load librdi_iptasks[info sharedlibextension]
+    if { $is_versal } {
+      Ip_Clocking_Init $partinfo
+    } else { 
+      Init_Clkwiz [current_project] test1 $partinfo
+    }
   }; # end initialize_clkwiz_debug
 
   # un-initialize clkwiz debug instance run
-  proc uninitialize_clkwiz_debug {} {
-    UnInit_Clkwiz [current_project] test1
+  # different APIs for versal vs non-versal 
+  proc uninitialize_clkwiz_debug {is_versal partinfo} {
+    if { $is_versal } {
+      Ip_Clocking_Uninit $partinfo 
+    } else {
+      UnInit_Clkwiz [current_project] test1
+    }
   }; # end uninitialize_clkwiz_debug
 
   # get property from clkwiz instance
+  # valid only for non-versal 
   proc get_clkwiz_prop {prop} {
     set val [GetClkwizProperty [current_project] test1 $prop]
     return $val
   }; # end get_clkwiz_prop
 
   # set clkwiz instance properties
+  # valid only for non-versal 
   proc set_clkwiz_prop {clock_freq_orig clock_freq} {
     SetClkwizProperty [current_project] test1 UseFinePS true 
     # GetClosestSolution <project_name> <instance_name> <requested output frequencies of clks separated by spaces> <requested phases of clocks separated by spaces> <requested duty cycles of clocks separated by spaces> <primary clock frequency> <secondary clock frequency> <number of output clocks> <minimum output jiter used> <non default phase or duty cycle> <primitive (MMCM or PLL)> <debug mode> <clkout XiPhy Enable> <clkout XiPhy Freq>
@@ -4853,8 +5092,9 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
 
   # create clock constraint(s) on the output pin of mmcm for implementation, overwriting a default generated clock
   # this only works if user specifies --kernel_freq
-  proc write_user_impl_clock_constraint {inst dict_clock_freqs steps_log vivado_output_dir} {
+  proc write_user_impl_clock_constraint {inst dict_clock_freqs steps_log vivado_output_dir is_versal} {
     set uninit_wiz true
+    set partinfo [get_property PART [current_project]]
     set user_impl_clk_xdc "_user_impl_clk.xdc"
     set fo_xdc_file [open $vivado_output_dir/$user_impl_clk_xdc w]
 
@@ -4885,14 +5125,34 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
 
         set clock_freq_orig [round_down [convert_period_to_freq $clock_period]]
         if { $uninit_wiz } {
-          initialize_clkwiz_debug
+          initialize_clkwiz_debug $is_versal $partinfo
           set uninit_wiz false
         }
-        set_clkwiz_prop $clock_freq_orig $clock_freq
-        set clkout0_divide [round_down [get_clkwiz_prop ChosenDiv0]]
-        set divclk_divide [round_down [get_clkwiz_prop ChosenD]]
-        set divide_by [expr {$clkout0_divide * $divclk_divide}]
-        set multiply_by [round_down [get_clkwiz_prop ChosenM]]
+       
+        # different APIs for versal vs non-versal 
+        if { $is_versal } {
+          # -primtive : 0 for MMCM, 1 for DPLL, 2 for PLL
+          # result format: {15.000000 1} { 400.000000:7.000000 }  
+          #                {multiplier divider} { output_frequency:div0 }
+          set result [Ip_Clocking_Calc_M_D -part $partinfo -output_freq $clock_freq -req_phase "0.000" -req_dc "50.000" -prim_freq $clock_freq_orig -secondary_freq "0" -min_power false -primtive 0]
+          #puts "---DEBUG: requested output freq: $clock_freq, input freq: $clock_freq_orig" 
+          #puts "---DEBUG: result: $result" 
+          regexp "{(\[0-9\]+\.\[0-9\]+) (\[0-9\]+)} { (\[0-9\]+\.\[0-9\]+):(\[0-9\]+\.\[0-9\]+) }" $result first second third fourth fifth
+          set multiply_by [round_down $second]
+          set divider [round_down $third]
+          set div0 [round_down $fifth]
+          set divide_by [expr {$divider * $div0}]
+          #puts "---DEBUG: second: $second, multiply_by: $multiply_by"
+          #puts "---DEBUG: third: $third, divider: $divider"
+          #puts "---DEBUG: fifth: $fifth, div0: $div0"
+          #puts "---DEBUG: divide_by: $divide_by" 
+        } else {
+          set_clkwiz_prop $clock_freq_orig $clock_freq
+          set clkout0_divide [round_down [get_clkwiz_prop ChosenDiv0]]
+          set divclk_divide [round_down [get_clkwiz_prop ChosenD]]
+          set divide_by [expr {$clkout0_divide * $divclk_divide}]
+          set multiply_by [round_down [get_clkwiz_prop ChosenM]]
+        }
     
         puts $fo_xdc_file "\n# Kernel clock overridden by user"
         puts $fo_xdc_file "create_generated_clock -name $gclock_name -divide_by $divide_by -multiply_by $multiply_by -source $inpin_mmcm $outpin_mmcm"
@@ -4907,7 +5167,7 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
     read_xdc $vivado_output_dir/$user_impl_clk_xdc
     
     if { !$uninit_wiz } {
-      uninitialize_clkwiz_debug 
+      uninitialize_clkwiz_debug $is_versal $partinfo
     }
   }; # end write_user_impl_clock_constraint
 
@@ -5078,11 +5338,43 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
     }
     if {![is_empty $uuid]} {
       puts "\nINFO: Read UUID ROM value: ${uuid}\n"
-      # and write the uuid to our int file
-      set logic_uuid_file "$vpl_output_dir/logic_uuid.txt"
-      set f [open $logic_uuid_file w]
+      # we can't write the logic_uuid.txt to int directory directly since 
+      # it will not support multi-strategies (i.e. multi impl runs)
+      # set logic_uuid_file "$vpl_output_dir/logic_uuid.txt"
+      # set f [open $logic_uuid_file w]
+      # puts -nonewline $f $uuid
+      # close $f
+
+      # write the uuid to logical_uuid.txt in the run directory
+      # logic_uuid.txt is used to update the interface_id
+      # in appendSection.rtd
+      puts "\nINFO: Write UUID to [pwd]/logic_uuid.txt"
+      set local_logic_uuid_file "./logic_uuid.txt"
+      set f [open $local_logic_uuid_file w]
       puts -nonewline $f $uuid
       close $f
+
+      # for debugging
+      # preopt.tcl from xsa generates uuid.fragment.csv in the top level 
+      # ouptut directory, i.e. where xclbin/xsa is generated
+      # set top_uuid_csv [glob -nocomplain "../../../../../../../uuid.fragment.csv"]
+      # if {$top_uuid_csv ne ""} {
+      #   # show timestamp
+      #   set systemTime [clock seconds]
+      #   puts "INFO: timestamp: [clock format $systemTime -format {%d %B %Y %H:%M:%S}]"
+      #   # show file content
+      #   puts "INFO: uuid.fragment.csv file content:"
+      #   set rf [open $top_uuid_csv r]
+      #   puts [read $rf]
+      #   close $rf
+      # }
+
+      # write the uuid to uuid.fragment.csv in the run directory
+      set local_uuid_csv "./uuid.fragment.csv"
+      set f [open $local_uuid_csv w]
+      puts $f "$uuid,$uuid"
+      close $f
+
     }
   }; # end update_logic_uuid_rom
 
@@ -5158,6 +5450,224 @@ xd:slaveInterface=\"${slaveInterface}\" xd:slaveSegment=\"${slaveSegment}\" xd:b
         puts "WARNING: Exception trying to read in log file for run $run: $catch_res"
       }
     }
+  }
+
+  # helper proc to decompose bd_pin format "/inst/pin" into "inst" and "pin"
+  proc decomposeBdPin { bd_pin } {
+    # trim a leading slash 
+    set new_bd_pin [string trim $bd_pin "/"]
+    set v_split [split $new_bd_pin "/"]
+    return $v_split 
+  } 
+
+  # collect bd connectivity data and send them to xcd's system diagram service 
+  proc collect_bd_connectivity { config_info } {
+
+    # _x/link/int
+    set vpl_output_dir      [dict get $config_info vpl_output_dir]
+    
+    # collect kernel instances
+    set insts [get_bd_cells -quiet -hier -filter "SDX_KERNEL==true"]
+    lappend insts [get_bd_cells -quiet -hier -filter "VLNV=~xilinx.com:ip:ai_engine*"]
+    
+    # init a container for clock instances
+    set clk_insts {}
+ 
+    # collect kernel instance data
+    foreach i $insts {
+
+      # print ip name
+      set vlnv [get_property VLNV [get_bd_cells $i]]
+      set v_split [split $vlnv ":"]
+      #puts "IP name: [lindex $v_split 2]"
+
+      # interface pins of each kernel instance
+      set i_pins [get_bd_intf_pins -of [get_bd_cells $i]]
+      #puts "Interface pins:"
+      foreach i_p $i_pins {
+        set mode [get_property MODE [get_bd_intf_pins $i_p]]
+        set intf_net [get_bd_intf_nets -of [get_bd_intf_pins $i_p]]
+        set intf_pins [get_bd_intf_pins -of [get_bd_intf_nets $intf_net]]
+        foreach intf_p $intf_pins {
+          if {$i_p == $intf_p} {
+            continue
+          }
+           
+          # decompose "/inst/pin" to "inst" and "pin"  
+          set i_p_split [decomposeBdPin $i_p]
+          set i_p_inst [lindex $i_p_split 0]
+          set i_p_pin [lindex $i_p_split 1]
+          set i_p_node_type "compute_unit"
+          set intf_p_split [decomposeBdPin $intf_p]
+          set intf_p_inst [lindex $intf_p_split 0]
+          set intf_p_pin [lindex $intf_p_split 1]
+          set intf_p_node_type "ip"
+          if { [lsearch -exact $insts "/$intf_p_inst"] >= 0 } {
+            set intf_p_node_type "compute_unit"
+          } 
+ 
+          if { [string equal $mode "Master"] } {
+            #set conn "  $i_p -> $intf_p"
+            #puts $conn
+            # send a bd interface connectivity info to dispatch server
+            #puts "calling upsert_connectivity -src_type $i_p_node_type -src_name $i_p_inst -src_port $i_p_pin -dst_type $intf_p_node_type -dst_name $intf_p_inst -dst_port $intf_p_pin" 
+            if { [ catch { ::system_diagram::upsert_connectivity -src_type $i_p_node_type -src_name $i_p_inst -src_port $i_p_pin -dst_type $intf_p_node_type -dst_name $intf_p_inst -dst_port $intf_p_pin } results ] } {
+              puts "WARNING: System Diagram upsert of compute unit interface connectivity: $results"
+            }
+    
+          } else {
+            #set conn "  $intf_p -> $i_p"
+            #puts $conn
+            # send a bd interface connectivity info to dispatch server
+            #puts "calling upsert_connectivity -src_type $intf_p_node_type -src_name $intf_p_inst -src_port $intf_p_pin -dst_type $i_p_node_type -dst_name $i_p_inst -dst_port $i_p_pin"
+            if { [ catch { ::system_diagram::upsert_connectivity -src_type $intf_p_node_type -src_name $intf_p_inst -src_port $intf_p_pin -dst_type $i_p_node_type -dst_name $i_p_inst -dst_port $i_p_pin } results ] } { 
+              puts "WARNING: System Diagram upsert of compute unit interface connectivity: $results"
+            }
+          }
+        }
+      }
+
+      # clock pin 
+      set clk_pins [get_bd_pins -quiet -filter {TYPE==clk && DIR==I} -of [get_bd_cells $i]]
+      foreach clk_pin $clk_pins {
+        set clk_net [get_bd_nets -of [get_bd_pins $clk_pin]]
+        set clk_net_driver_pin [get_bd_pins -quiet -filter {DIR=="O"} -of [get_bd_nets $clk_net]]
+
+        set clk_dst_split [decomposeBdPin $clk_pin]
+        set clk_dst_inst [lindex $clk_dst_split 0]
+        set clk_dst_pin [lindex $clk_dst_split 1]
+        set clk_dst_node_type "compute_unit"
+ 
+        if { $clk_net_driver_pin ne "" } {
+          #puts "Clock pin: $clk_net_driver_pin -> $clk_pin"
+          # decompose "/inst/pin" to "inst" and "pin"    
+          set clk_src_split [decomposeBdPin $clk_net_driver_pin]
+          set clk_src_inst [lindex $clk_src_split 0]
+          set clk_src_pin [lindex $clk_src_split 1]
+          set clk_src_node_type "ip_clock"
+          
+          # send a bd clock pin connectivity info to dispatch server
+          #puts "calling upsert_connectivity -src_type $clk_src_node_type -src_name $clk_src_inst -src_port $clk_src_pin -dst_type $clk_dst_node_type -dst_name $clk_dst_inst -dst_port $clk_dst_pin"
+          if { [ catch { ::system_diagram::upsert_connectivity -src_type $clk_src_node_type -src_name $clk_src_inst -src_port $clk_src_pin -dst_type $clk_dst_node_type -dst_name $clk_dst_inst -dst_port $clk_dst_pin } results ] } {
+            puts "WARNING: System Diagram upsert of compute unit clock connectivity: $results"
+          }
+ 
+          # add the clock instance to a clock inst list 
+          set clk_inst [get_bd_cells -of [get_bd_pins $clk_net_driver_pin]]
+          lappend clk_insts $clk_inst
+
+        } else {
+          # bd port to clock pin of compute unit 
+          set clk_net_driver_port [get_bd_ports -filter {DIR=="I" && TYPE==clk} -of [get_bd_nets $clk_net]]
+          set clk_src_port [string trim $clk_net_driver_port "/"]
+          set clk_src_node_type "bd_clock"
+
+          # send a bd clock pin connectivity info to dispatch server
+          #puts "calling upsert_connectivity -src_type $clk_src_node_type -src_port $clk_src_port -dst_type $clk_dst_node_type -dst_name $clk_dst_inst -dst_port $clk_dst_pin"
+          if { [ catch { ::system_diagram::upsert_connectivity -src_type $clk_src_node_type -src_port $clk_src_port -dst_type $clk_dst_node_type -dst_name $clk_dst_inst -dst_port $clk_dst_pin } results ] } {
+            puts "WARNING: System Diagram upsert of compute unit clock connectivity: $results"
+          }
+
+        }
+      }
+  
+      # reset pin
+      set rst_pin [get_bd_pins -quiet -filter "TYPE==rst" -of [get_bd_cells $i]]
+      if { $rst_pin == ""} {
+        continue
+      }
+      set rst_net [get_bd_nets -of [get_bd_pins $rst_pin]]
+      set rst_net_driver_pin [get_bd_pins -filter {DIR=="O"} -of [get_bd_nets $rst_net]]
+      if { $rst_net_driver_pin ne ""} {
+        #puts "Reset pin: $rst_net_driver_pin -> $rst_pin"
+        # decompose "/inst/pin" to "inst" and "pin"
+        set rst_src_split [decomposeBdPin $rst_net_driver_pin]
+        set rst_src_inst [lindex $rst_src_split 0]
+        set rst_src_pin [lindex $rst_src_split 1]
+        set rst_src_node_type "ip_reset"
+        set rst_dst_split [decomposeBdPin $rst_pin]
+        set rst_dst_inst [lindex $rst_dst_split 0]
+        set rst_dst_pin [lindex $rst_dst_split 1]
+        set rst_dst_node_type "compute_unit"
+
+        # send a bd reset pin connectivity info to dispatch server
+        #puts "calling upsert_connectivity -src_type $rst_src_node_type -src_name $rst_src_inst -src_port $rst_src_pin -dst_type $rst_dst_node_type -dst_name $rst_dst_inst -dst_port $rst_dst_pin"
+        if { [ catch { ::system_diagram::upsert_connectivity -src_type $rst_src_node_type -src_name $rst_src_inst -src_port $rst_src_pin -dst_type $rst_dst_node_type -dst_name $rst_dst_inst -dst_port $rst_dst_pin } results ] } {
+          puts "WARNING: System Diagram upsert of compute unit reset connectivity: $results"
+        }
+
+        # send an update on compute unit to dispatch server 
+        #puts "calling update_compute_unit -name $rst_dst_inst -reset_port $rst_dst_pin"
+        if { [ catch { ::system_diagram::update_compute_unit -name $rst_dst_inst -reset_port $rst_dst_pin } results ] } {
+          puts "WARNING: System Diagram update of compute unit: $results"
+        }
+
+      }
+    }
+
+    # clock connections
+    set uniq_clk_insts [lsort -unique $clk_insts]
+    foreach clk_inst $uniq_clk_insts {
+      set vlnv [get_property VLNV [get_bd_cells $clk_inst]]
+      set v_split [split $vlnv ":"]
+      #puts "IP name: [lindex $v_split 2]"
+
+      set clk_inst_input_pins [get_bd_pins -filter {DIR=="I" && TYPE==clk} -of [get_bd_cells $clk_inst]]
+      foreach clk_inst_input_pin $clk_inst_input_pins {
+        set clk_inst_input_net [get_bd_nets -of [get_bd_pins $clk_inst_input_pin]]
+        set clk_inst_driver_pin [get_bd_pins -quiet -filter {DIR=="O"} -of [get_bd_nets $clk_inst_input_net]]
+        
+        # decompose "/inst/pin" to "inst" and "pin"
+        set clk_dst_split [decomposeBdPin $clk_inst_input_pin]       
+        set clk_dst_inst [lindex $clk_dst_split 0]
+        set clk_dst_pin [lindex $clk_dst_split 1]
+        set clk_dst_node_type "ip_clock"
+ 
+        if { $clk_inst_driver_pin == "" } {
+          set clk_inst_driver_port [get_bd_ports -quiet -filter {DIR=="I" && TYPE==clk} -of [get_bd_nets $clk_inst_input_net]]
+          #puts "Connection (Port->Pin): $clk_inst_driver_port -> $clk_inst_input_pin"
+          # port has "/port" format
+          set clk_src_pin [string trim $clk_inst_driver_port "/"]
+          #set clk_src_inst "bd"
+          set clk_src_node_type "bd_clock"
+          
+          # send a bd clock pin connectivity info to dispatch server
+          #puts "calling upsert_connectivity -src_type $clk_src_node_type -src_port $clk_src_pin -dst_type $clk_dst_node_type -dst_name $clk_dst_inst -dst_port $clk_dst_pin"
+          if { [ catch { ::system_diagram::upsert_connectivity -src_type $clk_src_node_type -src_port $clk_src_pin -dst_type $clk_dst_node_type -dst_name $clk_dst_inst -dst_port $clk_dst_pin } results ] } {
+            puts "WARNING: System Diagram upsert of clock connectivity: $results"
+          }
+ 
+        } else {
+          #puts "Connection (Pin->Pin): $clk_inst_driver_pin -> $clk_inst_input_pin"
+          # decompose "/inst/pin" to "inst" and "pin"
+          set clk_src_split [decomposeBdPin $clk_inst_driver_pin]
+          set clk_src_inst [lindex $clk_src_split 0]
+          set clk_src_pin [lindex $clk_src_split 1]
+          set clk_src_node_type "ip_clock" 
+          
+          # send a bd clock pin connectivity info to dispatch server
+          #puts "calling upsert_connectivity -src_type $clk_src_node_type -src_name $clk_src_inst -src_port $clk_src_pin -dst_type $clk_dst_node_type -dst_name $clk_dst_inst -dst_port $clk_dst_pin"
+          if { [ catch { ::system_diagram::upsert_connectivity -src_type $clk_src_node_type -src_name $clk_src_inst -src_port $clk_src_pin -dst_type $clk_dst_node_type -dst_name $clk_dst_inst -dst_port $clk_dst_pin } results ] } {
+            puts "WARNING: System Diagram upsert of clock connectivity: $results"
+          }
+        }
+      }
+    }
+    
+    # TODO: remove before submit 
+    #set out_file_path [ file normalize "system_diagram_update_bd.json" ]
+    #puts "calling write_current_system_diagram $out_file_path"
+    #if { [ catch { ::system_diagram::write_current_system_diagram $out_file_path SYSTEM_DIAGRAM_PLUS } results ] } {
+    #  puts "WARNING: System Diagram writing system diagram: $results"
+    #}
+
+    # deposit automation summary report early after collecting all the bd connections
+    set out_file_path $vpl_output_dir/automation_summary_update_bd.txt
+    #puts "calling write_automation_summary $out_file_path"
+    if { [ catch { ::system_diagram::write_automation_summary $out_file_path } results ] } {
+      puts "WARNING: System Diagram writing automation summary: $results"
+    }  
+
   }
 
 }; # end namespace

@@ -73,8 +73,13 @@ class report(gen_basic):
 
   def gen_resource_report(self, benchmark_name, operators_list):
     resource_report_dict = {}
+    LUT_SUM  = 0
+    FF_SUM   = 0
+    BRAM_SUM = 0
+    URAM_SUM = 0
+    DSP_SUM  = 0
     for fun_name in operators_list:
-      print(fun_name)
+      # print(fun_name)
       map_target_exist, map_target = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+fun_name+'.h', 'map_target')
       page_exist, page_num = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+fun_name+'.h', 'page_num')
       resource_report_dict[fun_name] = fun_name.ljust(30) + '\t' + str(map_target) + '\t' + str(page_num)
@@ -87,16 +92,22 @@ class report(gen_basic):
           if self.shell.have_target_string(line, 'Instance'):
             resource_list =  file_list[idx+2].replace(' ', '').split('|')
             resource_report_dict[fun_name] += '\t' + resource_list[3]
+            LUT_SUM                        += int(resource_list[3])
             resource_report_dict[fun_name] += '\t' + resource_list[7]
+            FF_SUM                         += int(resource_list[7])
             bram_num = int(resource_list[8])*2+int(resource_list[9])
             resource_report_dict[fun_name] += '\t' + str(bram_num)
+            BRAM_SUM                       += int(bram_num)
             resource_report_dict[fun_name] += '\t' + resource_list[10]
+            URAM_SUM                       += int(resource_list[10])
             resource_report_dict[fun_name] += '\t' + resource_list[11]
+            DSP_SUM                       += int(resource_list[11])
       except:
         print ('Something is wrong with '+file_name) 
 
 
 
+    list_line = 'total                                                           HIPR\t0\t'+str(LUT_SUM)+'\t'+str(FF_SUM)+'\t'+str(BRAM_SUM)+'\t'+str(URAM_SUM)+'\t'+str(DSP_SUM)
     resource_report_file = open('./workspace/report/resource_report_'+benchmark_name+'.csv', 'w')
     resource_report_file.write('operator                  \ttarget\tpage\tLUTs\tFFs\tBRAM18s\tURAM\tDSPs\n')
     for key, value in sorted(resource_report_dict.items()):
@@ -104,6 +115,7 @@ class report(gen_basic):
     print ('\n                               operator                  \ttarget\tpage\tLUTs\tFFs\tBRAM18s\tURAM\tDSPs')
     print ('------------------------------------------------------------------------------------------------------------------')
     self.print_dict(resource_report_dict)
+    print(list_line)
 
   def gen_timing_report(self, benchmark_name, operators_list):
     timing_report_dict = {}
@@ -140,15 +152,82 @@ class report(gen_basic):
     print ('-------------------------------------------------------------------------------------')
     self.print_dict(timing_report_dict)
 
+  def gen_pragma_report(self, benchmark_name, operators_list):
+    pragma_dict = {}
+    for fun_name in operators_list:
+      # print(fun_name)
+      map_target_exist, map_target = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+fun_name+'.h', 'map_target')
+      page_exist,       page_num   = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+fun_name+'.h', 'page_num')
+      clb_exist,        clb_num    = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+fun_name+'.h', 'clb')
+      ff_exist,         ff_num     = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+fun_name+'.h', 'ff')
+      bram_exist,       bram_num   = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+fun_name+'.h', 'bram')
+      dsp_exist,        dsp_num    = self.pragma.return_pragma('./input_src/'+self.prflow_params['benchmark_name']+'/operators/'+fun_name+'.h', 'dsp')
+
+      pragma_dict[fun_name] = fun_name.ljust(30) + '\t' + str(map_target) + '\t' + str(page_num)
+      if clb_exist : pragma_dict[fun_name] += '\t'+str(clb_num) 
+      else         : pragma_dict[fun_name] += '\tx' 
+      if ff_exist  : pragma_dict[fun_name] += '\t'+str(ff_num) 
+      else         : pragma_dict[fun_name] += '\tx' 
+      if bram_exist: pragma_dict[fun_name] += '\t'+str(bram_num) 
+      else         : pragma_dict[fun_name] += '\tx' 
+      if dsp_exist : pragma_dict[fun_name] += '\t'+str(dsp_num) 
+      else         : pragma_dict[fun_name] += '\tx' 
+
+
+
+    pragma_report_file = open('./workspace/report/pragma_report_'+benchmark_name+'.csv', 'w')
+    pragma_report_file.write('operator                  \ttarget\tpage\tLUTs\tFFs\tBRAM18s\tDSPs\n')
+    for key, value in sorted(pragma_dict.items()):
+      pragma_report_file.write(value+'\n')  
+    print ('\n                               operator                  \ttarget\tpage\tLUTs\tFFs\tBRAM18s\tDSPs')
+    print ('------------------------------------------------------------------------------------------------------------------')
+    self.print_dict(pragma_dict)
+
+
+
+  def grab_runtime(self):
+    try:
+      file_name = self.bit_dir+'/summary.csv'
+      file_in = open(file_name, 'r')
+      find_summary_flag = False
+      line_offset = 0
+      read_start = 0.0
+      write_end = 0.0
+      unit = 's'
+      for line in file_in:
+        if (self.shell.have_target_string(line, 'mem_read2') and self.shell.have_target_string(line, 'dma')):
+          words_list=line.split(',')
+          print(words_list)
+          read_start = float(words_list[5])
+        if (self.shell.have_target_string(line, 'mem_write2') and self.shell.have_target_string(line, 'dma')):
+          words_list=line.split(',')
+          print(words_list)
+          write_end = float(words_list[5])+float(words_list[6])
+        if (self.shell.have_target_string(line, 'Kernel Instance Address')):
+          words_list=line.split(',')
+          unit = words_list[5].split('(')[1].split(')')[0]
+        
+      file_in.close()
+      print("read_start: "+str(read_start)+' '+unit)
+      print(" write_end: "+str(write_end)+' '+unit)
+      print("  duration: "+str(round(write_end-read_start, 3))+' '+unit)
+      print(" bandwidth: "+str(round(1024000*512/(write_end-read_start)/1000/8, 3))+" MB/s")
+    except:
+      print ('Something is wrong with '+file_name) 
+
+
+    
  
   def run(self, operators_str):
 
     self.shell.mkdir(self.rpt_dir)
     benchmark_name = self.prflow_params['benchmark_name']
     operators_list = operators_str.split() 
-    self.gen_resource_report(benchmark_name, operators_list)
-    self.gen_compile_time_report(benchmark_name, operators_list)
-    self.gen_timing_report(benchmark_name, operators_list)
+    self.gen_pragma_report     (benchmark_name, operators_list)
+    self.gen_timing_report       (benchmark_name, operators_list)
+    self.grab_runtime()
+    self.gen_compile_time_report (benchmark_name, operators_list)
+    self.gen_resource_report     (benchmark_name, operators_list)
     print ('You can find the comile time report and resource report under: ./workspace/report')
 
     

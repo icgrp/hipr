@@ -1,0 +1,23 @@
+{
+    "schema_version": {
+        "major": "1",
+        "minor": "2",
+        "patch": "0"
+    },
+    "generation": {
+        "this_file": "\/scratch\/volatile\/ylxiao\/ws_221\/AU50_Bandwidth\/increment_bd_measure\/sw_emu\/xrt.run_summary",
+        "source": "vp",
+        "PID": "26884",
+        "timestamp": "1667875867644"
+    },
+    "files": [
+        {
+            "name": "opencl_trace.csv",
+            "type": "VP_TRACE"
+        },
+        {
+            "name": "summary.csv",
+            "type": "PROFILE_SUMMARY"
+        }
+    ]
+}
