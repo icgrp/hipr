@@ -36,7 +36,7 @@ all: ../__overlay_is_ready__
 	mkdir -p workspace/qsub
 	echo "#!/bin/bash -e"                                                  > run_touch.sh
 	echo "touch ../__overlay_is_ready__"                                  >> run_touch.sh
-	echo "cd ../../.../  && make prj_name=$(app) freq=$(freq) bits"            >> run_touch.sh
+	# echo "cd ../../.../  && make prj_name=$(app) freq=$(freq) bits"            >> run_touch.sh
 	chmod +x                                                                 run_touch.sh
 ifeq ($(back_end), qsub)
 	qsub -N touch_$(app)_$(freq) -hold_jid $(abs_depend) -q 70s -l mem=20G -pe onenode 1  -o ./workspace/qsub -e ./workspace/qsub -cwd run_touch.sh

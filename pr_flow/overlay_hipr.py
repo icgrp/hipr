@@ -127,8 +127,8 @@ class overlay(gen_basic):
     else: # generate abstract shell dcps for psnoc overlay
       lines_list.append('cd '+self.prflow_params['board']+'_dfx_manual')
     lines_list.append('source '+self.prflow_params['Xilinx_dir'])
-    lines_list.append('make -j$(nproc)')
-    # lines_list.append('make')
+    # lines_list.append('make -j$(nproc)')
+    lines_list.append('make')
     lines_list.append('cd -')
     return lines_list
 
