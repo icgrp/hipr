@@ -260,7 +260,8 @@ git_clean:
 git:
 	git add .
 	git commit -m "$(m)"
-	git push origin au280
+	git push origin au280_2022.1
+
 
 clear:
 	rm -rf ./workspace/F002_hls_$(prj_name)_$(freq)
